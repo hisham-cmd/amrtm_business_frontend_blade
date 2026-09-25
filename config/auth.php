@@ -26,6 +26,21 @@ return [
             'driver' => 'token',
             'provider' => 'users',
         ],
+
+        /*
+        | حكام وهمية (لا DB): القوالب القديمة تدعو auth('business') و auth('office')
+        | في النسخة النظيفة لا يوجد مستخدمون محليون — تعيد null دائماً.
+        | المصادقة الحقيقية كلها في الباك اند عبر BackendApi.
+        */
+        'business' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'office' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
     ],
 
     'providers' => [

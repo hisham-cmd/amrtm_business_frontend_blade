@@ -163,28 +163,29 @@ class ServiceCatalogController extends Controller
     }
 
     /** دليل المكاتب — GET /api/v1/offices/{type} (تخصصات) */
-    public function officeDirectory(string $type): View
+    public function officeDirectory(Request $request, string $type): View
     {
         $data = BackendApi::get("/api/v1/offices/{$type}");
+        $raw = $data->get('specialties', []);
+        $raw = $raw instanceof \Illuminate\Support\Collection ? $raw->all() : (array) $raw;
 
-        return view('update_service.office_directory', [
-            'officeType' => $type,
-            'specialties'=> collect($data->get('specialties', []))->map(fn($s) => (object) (array) $s),
-            'totalOffices' => $data->get('total_offices', 0),
-            'config'     => $data->get('config', []),
-        ]);
-    }
+        $typeConfig = $data->get('config', []);
+        $typeConfig = $typeConfig instanceof \Illuminate\Support\Collection ? $typeConfig->all() : (array) $typeConfig;
 
-    /** تخصص مهني — GET /api/v1/consultants (فلترة حسب التخصص) */
-    public function specialtyDetail(string $type, string $specialty): View
-    {
-        $data = BackendApi::get("/api/v1/offices/{$type}");
+        $specialties = collect($raw);
+        $cfg = [
+            'icon'    => $typeConfig['icon'] ?? 'ti-building',
+            'color'   => $typeConfig['color'] ?? '#006C35',
+            'accent'  => $typeConfig['accent'] ?? '#0B3B2C',
+            'gradient'=> $typeConfig['gradient'] ?? 'linear-gradient(135deg,#0B3B2C,#006C35)',
+            'badge_ar'=> $typeConfig['badge_ar'] ?? 'مكاتب متخصصة',
+            'hint_ar' => $typeConfig['hint_ar'] ?? 'اختر التخصص المناسب',
+            'name_ar' => $typeConfig['name_ar'] ?? $type,
+            'name_en' => $typeConfig['name_en'] ?? $type,
+            'desc_ar' => $typeConfig['desc_ar'] ?? '',
+        ];
+        $totalOffices = $data->get('total_offices', 0);
 
-        return view('update_service.specialty_detail', [
-            'officeType' => $type,
-            'specialty'  => $specialty,
-            'offices'    => collect($data->get('specialties', []))->filter(fn($s) => (string) ($s['id'] ?? '') === (string) $specialty),
-            'config'     => $data->get('config', []),
-        ]);
+        return view('update_service.office_directory', compact('type', 'specialties', 'cfg', 'totalOffices'));
     }
 }
