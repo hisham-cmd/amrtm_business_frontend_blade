@@ -126,8 +126,8 @@ class AuthController extends Controller
         return (new \App\Support\BackendApiWithToken($token))->call($method, $path, $body);
     }
 
-    /** لوحة الإدارة — القالب الأصلي (supervisor) عبر بيانات الـ API */
-    public function adminDashboard(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    /** لوحة الإدارة — القالب الأصلي الكامل (dashboard/admin/layout + 14 تبويب) */
+    public function adminDashboard(Request $request): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
     {
         if (!$this->token()) {
             return redirect()->route('amrtm.login');
@@ -139,28 +139,55 @@ class AuthController extends Controller
             return redirect()->route('amrtm.user.dashboard');
         }
 
+        // الصفحة النشطة: من المسار (مثال /admin/requests → requests) أو default overview
+        $adminPage = 'overview';
+        $path = trim($request->path(), '/');
+        $known = ['requests', 'offices', 'office-specialties', 'services-approvals', 'users', 'catalog', 'pricing', 'contracts', 'analytics', 'logs', 'permissions', 'settings', 'finance', 'off-finance', 'messages', 'homepage'];
+        foreach ($known as $p) {
+            if (str_contains($path, $p)) { $adminPage = $p; break; }
+        }
+
+        // جلب إحصاءات لوحة الإدارة من الـ API
         $stats = $this->callAuthed('GET', '/api/v1/dashboard/admin');
         if ($stats->has('value')) { $v = $stats->get('value'); $stats = collect(is_array($v) ? $v : []); }
 
-        $qty = fn($k) => (int) (is_object($stats) ? ($stats->get($k) ?? 0) : ($stats[$k] ?? 0));
+        // جلب بيانات التبويبات اللازمة (نظرة عامة + طلبات)
+        $requests = $this->callAuthed('GET', '/api/v1/admin/requests?status=all');
+        if ($requests->has('value')) { $v = $requests->get('value'); $requests = collect(is_array($v) ? $v : []); }
 
-        $persona = [
-            'key'   => $apiUser['role'] ?? 'admin',
-            'label' => ($apiUser['role'] ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',
-            'types' => ['admin'],
-            'name'  => $apiUser['name'] ?? '',
-        ];
-        $dashboardMenu = [
-            ['label' => 'الرئيسية', 'items' => [
-                ['href' => route('amrtm.admin.dashboard'), 'ar' => 'نظرة عامة', 'en' => 'Overview', 'icon' => 'ti-dashboard', 'count' => null],
-            ]],
-            ['label' => 'الإدارة', 'items' => [
-                ['href' => route('amrtm.index'), 'ar' => 'الموقع العام', 'en' => 'Website', 'icon' => 'ti-world', 'count' => null],
-            ]],
-        ];
-        $pageTitle = 'لوحة التحكم — ' . $persona['label'];
+        $reqArr = $requests->get('data', $requests->all());
+        if ($reqArr instanceof \Illuminate\Support\Collection) { $reqArr = $reqArr->all(); }
 
-        return view('update_service.api.admin', compact('stats', 'persona', 'dashboardMenu', 'pageTitle', 'apiUser', 'qty'));
+        $pageData = [
+            'stats' => $stats->all(),
+            'requests' => collect($reqArr ?? [])->values(),
+        ];
+
+        // بناء البنية التي ينتظرها dashboard/admin/layout (persona + قوائم count)
+        $hubStats = [
+            'requests'  => (int) ($stats->get('requests.total') ?? $stats->get('total_requests') ?? 0),
+            'offices'   => (int) ($stats->get('offices') ?? 0),
+            'users'     => (int) ($stats->get('users') ?? 0),
+            'contracts' => (int) ($stats->get('contracts') ?? 0),
+        ];
+        $dashboardMenu = \App\Support\DashboardRegistry::menuFor([\App\Support\DashboardRegistry::TYPE_ADMIN], 'admin');
+        foreach ($dashboardMenu as &$grp) {
+            foreach ($grp['items'] as &$itm) {
+                $itm['count'] = $hubStats[$itm['key']] ?? null;
+            }
+            unset($itm);
+        }
+        unset($grp);
+
+        // تحديد الصفحة الفعلية (كل صفحة تبويب تُضمّن admin-content داخل layout)
+        $viewName = 'update_service.dashboard.admin.pages.' . $adminPage;
+        if (!view()->exists($viewName)) {
+            $viewName = 'update_service.dashboard.admin.pages.overview';
+        }
+
+        return view($viewName, compact(
+            'apiUser', 'pageData', 'adminPage', 'dashboardMenu', 'hubStats'
+        ));
     }
 
     /** لوحة المستخدم — القالب الأصلي (user_dashboard) مع بيانات الـ API */

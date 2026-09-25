@@ -87,6 +87,26 @@ Route::get('/admin', [AuthController::class, 'adminDashboard'])->name('amrtm.adm
 Route::get('/office/dashboard', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.dashboard');
 Route::get('/office', fn () => redirect()->route('amrtm.index'));
 
+/* ═══ لوحات الإدارة — التبويبات (تعرض عبر adminDashboard) ═══ */
+Route::get('/admin/requests', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.requests');
+Route::get('/admin/offices', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.offices');
+Route::get('/admin/offices/create-form', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.offices.create-form');
+Route::get('/admin/offices/{id}/edit-form', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.offices.edit-form');
+Route::get('/admin/office-specialties', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.office-specialties');
+Route::get('/admin/services-approvals', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.services-approvals');
+Route::get('/admin/users', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.users');
+Route::get('/admin/catalog', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.catalog');
+Route::get('/admin/pricing', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.pricing');
+Route::get('/admin/contracts', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.contracts');
+Route::get('/admin/analytics', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.analytics');
+Route::get('/admin/logs', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.logs');
+Route::get('/admin/permissions', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.permissions');
+Route::get('/admin/settings', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.settings');
+Route::get('/admin/finance', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.finance');
+Route::get('/admin/off-finance', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.off-finance');
+Route::get('/admin/messages', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.messages');
+Route::get('/admin/homepage', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.homepage');
+
 /* ═══ أسماء routes اسمية (تُعيد للرئيسية — تمنع RouteNotFound في القوالب) ═══ */
 Route::get('/dashboard-hub', fn () => redirect()->route('amrtm.user.dashboard'))->name('amrtm.dashboard.hub');
 Route::post('/office/complete/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.complete.save');

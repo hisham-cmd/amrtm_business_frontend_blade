@@ -13,20 +13,8 @@
         'name' => $adminUser->name ?? '',
     ];
     $pageTitle = 'لوحة التحكم — ' . $persona['label'];
-    $hubStats = [
-        'requests' => \App\Models\ServiceRequest::query()->count(),
-        'offices' => \App\Models\Business\Office::query()->count(),
-        'users' => \App\Models\Business\BusinessUser::query()->whereNotIn('role', ['admin', 'supervisor'])->count(),
-        'contracts' => \App\Models\Business\Contract::query()->count(),
-    ];
-    $dashboardMenu = \App\Support\DashboardRegistry::menuFor($frontTypes, 'admin');
-    foreach ($dashboardMenu as &$grp) {
-        foreach ($grp['items'] as &$itm) {
-            $itm['count'] = $hubStats[$itm['key']] ?? null;
-        }
-        unset($itm);
-    }
-    unset($grp);
+    // القائمة والعدادات من الـ Controller (مهيأة من الـ API) — لا استعلام DB محلي
+    $dashboardMenu = $dashboardMenu ?? [];
 @endphp
 
 @include('update_service.dashboard._admin_css')

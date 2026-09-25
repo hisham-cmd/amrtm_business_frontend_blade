@@ -1,7 +1,8 @@
 ﻿@extends('update_service.dashboard.admin.layout')
 
 @section('admin-content')
-            @if (auth('business')->user()->role === 'supervisor')
+            @php $ovRole = auth('business')->user()->role ?? ($apiUser['role'] ?? 'user'); @endphp
+            @if ($ovRole === 'supervisor')
                 @php
                     $stats = $pageData['stats'] ?? null;
                     $req = $stats['requests'] ?? ['total' => 0, 'pending' => 0, 'processing' => 0, 'done' => 0, 'rejected' => 0];
