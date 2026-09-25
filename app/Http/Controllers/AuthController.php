@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Support\BackendApi;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cookie;
 use Illuminate\View\View;
 
 /**
@@ -22,6 +21,12 @@ class AuthController extends Controller
         return view('amrtm.auth.login');
     }
 
+    /** معروض صفحة إنشاء حساب (amrtm.register) */
+    public function showRegister(): View
+    {
+        return view('amrtm.auth.register');
+    }
+
     /** معالجة POST الدخول → يرسل إلى الـ API ويخزّن التوكن */
     public function submit(Request $request)
     {
@@ -30,17 +35,23 @@ class AuthController extends Controller
             'password' => $request->input('password'),
         ]);
 
-        $token = $data->get('value.token') ?? $data->get('token');
+        // استخراج التوكن من المغلف { isSuccess, value: { token }, error }
+        $value = $data->get('value');
+        $token = is_array($value) ? ($value['token'] ?? null) : ($data->get('token') ?? null);
+        if (!$token && $value instanceof \Illuminate\Support\Collection) {
+            $token = $value->get('token');
+        }
         if (!$token) {
-            return back()->withErrors([
-                'email' => $data->get('error.message', 'البريد أو كلمة المرور غير صحيحة.'),
-            ])->withInput();
+            $err = $data->get('error');
+            $msg = is_array($err) ? ($err['message'] ?? 'فشل الدخول.') : 'فشل الدخول.';
+
+            return back()->withErrors(['email' => $msg])->withInput();
         }
 
-        // تخزين التوكن في cookie آمن (HTTP only)
-        Cookie::queue('amrtm_api_token', $token, 60 * 24 * 7, null, null, false, true);
+        // تخزين التوكن في الجلسة (آمن، يمر عبر Laravel session مع web middleware)
+        session(['amrtm_api_token' => $token]);
 
-        $redirect = $request->input('redirect', '/');
+        $redirect = $request->input('redirect', route('amrtm.user.dashboard'));
 
         return redirect($redirect);
     }
@@ -57,22 +68,28 @@ class AuthController extends Controller
             'account_type'          => $request->input('account_type', 'individual'),
         ]);
 
-        $token = $data->get('value.token') ?? $data->get('token');
+        // استخراج التوكن من المغلف (نفس منطق login)
+        $value = $data->get('value');
+        $token = is_array($value) ? ($value['token'] ?? null) : ($data->get('token') ?? null);
+        if (!$token && $value instanceof \Illuminate\Support\Collection) {
+            $token = $value->get('token');
+        }
         if (!$token) {
-            return back()->withErrors([
-                'email' => $data->get('error.message', 'تعذر إنشاء الحساب.'),
-            ])->withInput();
+            $err = $data->get('error');
+            $msg = is_array($err) ? ($err['message'] ?? 'تعذر إنشاء الحساب.') : 'تعذر إنشاء الحساب.';
+
+            return back()->withErrors(['email' => $msg])->withInput();
         }
 
-        Cookie::queue('amrtm_api_token', $token, 60 * 24 * 7, null, null, false, true);
+        session(['amrtm_api_token' => $token]);
 
         return redirect()->route('amrtm.index')->with('success', 'تم إنشاء حسابك بنجاح!');
     }
 
-    /** تسجيل الخروج — إلغاء الـ cookie */
+    /** تسجيل الخروج — مسح جلسة التوكن */
     public function logout()
     {
-        Cookie::queue(Cookie::forget('amrtm_api_token'));
+        session()->forget('amrtm_api_token');
 
         return redirect()->route('amrtm.index');
     }
@@ -86,7 +103,7 @@ class AuthController extends Controller
 
     private function token(): ?string
     {
-        return request()->cookie('amrtm_api_token');
+        return session('amrtm_api_token');
     }
 
     private function callAuthed(string $method, string $path, array $body = []): \Illuminate\Support\Collection
@@ -106,25 +123,43 @@ class AuthController extends Controller
             return redirect()->route('amrtm.login');
         }
 
-        // عند عدم توفّر بيانات API كاملة، نعرض واجهة السجل مع بيانات خفيفة
-        $stats   = $this->callAuthed('GET', '/api/v1/dashboard/user');
+        $stats    = $this->callAuthed('GET', '/api/v1/dashboard/user');
         $requests = $this->callAuthed('GET', '/api/v1/requests');
 
-        return view('update_service.user_dashboard', [
+        // الاستخراج من المغلف { value: {...} } إن وجد (مستوى واحد)
+        if ($stats->has('value')) {
+            $v = $stats->get('value');
+            $stats = collect(is_array($v) ? $v : []);
+        }
+        if ($requests->has('value')) {
+            $v = $requests->get('value');
+            $requests = collect(is_array($v) ? $v : []);
+        }
+        if ($requests->has('requests')) {
+            $requests = collect($requests->get('requests', []));
+        }
+
+        return view('update_service.api.dashboard', [
             'stats'    => $stats,
-            'requests' => collect($requests->get('data', []))->values(),
+            'requests' => collect($requests->get('data', $requests->all()))->values(),
         ]);
     }
 
-    /** تتبع طلب — يعرض القالب العام (التفاصيل تُجلب عبر الـ API) */
+    /** تتبع طلب — بيانات من الـ API */
     public function track(int $id): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
     {
         if (!$this->token()) {
             return redirect()->route('amrtm.login');
         }
 
-        return view('update_service.request_track', [
-            'serviceRequest' => $this->callAuthed('GET', "/api/v1/requests/{$id}"),
+        $data = $this->callAuthed('GET', "/api/v1/requests/{$id}");
+        if ($data->has('value')) {
+            $v = $data->get('value');
+            $data = collect(is_array($v) ? $v : []);
+        }
+
+        return view('update_service.api.track', [
+            'serviceRequest' => $data,
         ]);
     }
 
@@ -135,6 +170,38 @@ class AuthController extends Controller
             return redirect()->route('amrtm.login');
         }
 
-        return view('update_service.payment_checkout');
+        return view('update_service.api.payment');
+    }
+
+    /** صفحة العقود — بيانات من الـ API */
+    public function contracts(Request $request): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    {
+        if (!$this->token()) {
+            return redirect()->route('amrtm.login');
+        }
+
+        $tab = $request->route()?->getName() === 'amrtm.contracts.incoming' ? 'incoming' : 'my';
+
+        $contracts = $this->callAuthed('GET', "/api/v1/contracts/{$tab}");
+        if ($contracts->has('value')) {
+            $v = $contracts->get('value');
+            $contracts = collect(is_array($v) ? $v : []);
+        }
+        $stats = $this->callAuthed('GET', '/api/v1/dashboard/user');
+        if ($stats->has('value')) {
+            $v = $stats->get('value');
+            $stats = collect(is_array($v) ? $v : []);
+        }
+        $requests = $this->callAuthed('GET', '/api/v1/requests');
+        if ($requests->has('value')) {
+            $v = $requests->get('value');
+            $requests = collect(is_array($v) ? $v : []);
+        }
+
+        return view('update_service.api.contracts', [
+            'contracts' => $contracts,
+            'stats'     => $stats,
+            'requests'  => collect($requests->get('data', []))->values(),
+        ]);
     }
 }

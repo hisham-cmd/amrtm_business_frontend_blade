@@ -31,8 +31,8 @@ Route::get('/offices/{type}/{id}', fn () => redirect()->route('amrtm.index'))->n
 Route::get('/login', [AuthController::class, 'showLogin'])->name('amrtm.login');
 Route::get('/sign-in', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'submit'])->name('amrtm.login.submit');
-Route::get('/register', [AuthController::class, 'showLogin'])->name('amrtm.register');
-Route::get('/sign-up', [AuthController::class, 'showLogin'])->name('register');
+Route::get('/register', [AuthController::class, 'showRegister'])->name('amrtm.register');
+Route::get('/sign-up', [AuthController::class, 'showRegister'])->name('register');
 Route::post('/register', [AuthController::class, 'register'])->name('amrtm.register.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('amrtm.logout');
 
@@ -67,10 +67,10 @@ Route::get('/requests/{id}/track', [AuthController::class, 'track'])->name('amrt
 Route::get('/payment/checkout', [AuthController::class, 'payment'])->name('amrtm.payment.checkout');
 Route::post('/api/v1/payments/charge', fn () => response()->json(['message' => 'ادفع عبر الباك اند'], 501))->name('amrtm.api.payments.charge');
 
-/* ═══ العقود (عرض) ═══ */
+/* ═══ العقود (عرض — بيانات عبر الـ API) ═══ */
 Route::get('/create-contract', fn () => view('update_service.contracts_create_static'))->name('amrtm.create-contract');
-Route::get('/contracts/my', fn () => view('update_service.contracts_my'))->name('amrtm.contracts.my');
-Route::get('/contracts/incoming', fn () => view('update_service.contracts_incoming'))->name('amrtm.contracts.incoming');
+Route::get('/contracts/my', [AuthController::class, 'contracts'])->name('amrtm.contracts.my');
+Route::get('/contracts/incoming', [AuthController::class, 'contracts'])->name('amrtm.contracts.incoming');
 Route::get('/contracts/{id}', fn () => view('update_service.contract_show', [
     'contract' => null,
     'company'  => null,

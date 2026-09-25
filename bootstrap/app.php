@@ -23,6 +23,16 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+        // المصادقة عبر الـ API المنفصل — لا نحتاج CSRF محلي لموارد الدخول/التسجيل
+        $middleware->validateCsrfTokens(except: [
+            'login',
+            'register',
+            'logout',
+            'nafath/*',
+            'contracts',
+            'provider-account',
+            'office/profile/update',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (TokenMismatchException $exception, Request $request) {
