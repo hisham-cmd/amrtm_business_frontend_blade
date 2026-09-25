@@ -54,8 +54,13 @@ class AuthController extends Controller
         // تخزين التوكن في الجلسة (آمن، يمر عبر Laravel session مع web middleware)
         session(['amrtm_api_token' => $token]);
 
-        $redirect = $request->input('redirect', route('amrtm.user.dashboard'));
+        // توجيه الوجهة: قيمة غير فارغة من النموذج، وإلا لوحة المستخدم
+        $redirect = trim((string) $request->input('redirect', ''));
+        if ($redirect === '') {
+            $redirect = route('amrtm.user.dashboard');
+        }
 
+        // نضمن نصاً غير فارغ دائماً → redirect() تعيد RedirectResponse
         return redirect($redirect);
     }
 
