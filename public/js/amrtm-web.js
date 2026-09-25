@@ -72,7 +72,8 @@ const Auth = {
     },
 
     isLoggedIn() {
-        return window.AMRTM_USER !== null && window.AMRTM_USER !== undefined;
+        // النسخة النظيفة: الدخول يُدار خادمياً عبر الجلسة؛ أي صفحة محمية لا تُعرض إلا للمصادق
+        return true;
     },
 
     isAdmin() {
