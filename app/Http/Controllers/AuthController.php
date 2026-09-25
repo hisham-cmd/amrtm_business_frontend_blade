@@ -28,7 +28,7 @@ class AuthController extends Controller
     }
 
     /** معالجة POST الدخول → يرسل إلى الـ API ويخزّن التوكن */
-    public function submit(Request $request)
+    public function submit(Request $request): \Illuminate\Http\RedirectResponse
     {
         $data = BackendApi::post('/api/v1/auth/login', [
             'email'    => $request->input('email'),
@@ -42,10 +42,13 @@ class AuthController extends Controller
             $token = $value->get('token');
         }
         if (!$token) {
-            $err = $data->get('error');
-            $msg = is_array($err) ? ($err['message'] ?? 'فشل الدخول.') : 'فشل الدخول.';
+            $err  = $data->get('error');
+            $msg  = is_array($err) ? ($err['message'] ?? 'فشل الدخول.') : 'فشل الدخول.';
 
-            return back()->withErrors(['email' => $msg])->withInput();
+            // التوجيه الصريح بدل back() — مضمون كنوع RedirectResponse (يتفادى TypeError)
+            return redirect()->route('amrtm.login')
+                ->withErrors(['email' => $msg])
+                ->withInput();
         }
 
         // تخزين التوكن في الجلسة (آمن، يمر عبر Laravel session مع web middleware)
@@ -57,7 +60,7 @@ class AuthController extends Controller
     }
 
     /** معالجة POST التسجيل (إنشاء حساب عميل) */
-    public function register(Request $request)
+    public function register(Request $request): \Illuminate\Http\RedirectResponse
     {
         $data = BackendApi::post('/api/v1/auth/register', [
             'name'                  => $request->input('name'),
@@ -75,10 +78,12 @@ class AuthController extends Controller
             $token = $value->get('token');
         }
         if (!$token) {
-            $err = $data->get('error');
-            $msg = is_array($err) ? ($err['message'] ?? 'تعذر إنشاء الحساب.') : 'تعذر إنشاء الحساب.';
+            $err  = $data->get('error');
+            $msg  = is_array($err) ? ($err['message'] ?? 'تعذر إنشاء الحساب.') : 'تعذر إنشاء الحساب.';
 
-            return back()->withErrors(['email' => $msg])->withInput();
+            return redirect()->route('amrtm.register')
+                ->withErrors(['email' => $msg])
+                ->withInput();
         }
 
         session(['amrtm_api_token' => $token]);
@@ -87,7 +92,7 @@ class AuthController extends Controller
     }
 
     /** تسجيل الخروج — مسح جلسة التوكن */
-    public function logout()
+    public function logout(): \Illuminate\Http\RedirectResponse
     {
         session()->forget('amrtm_api_token');
 
