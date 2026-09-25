@@ -22,7 +22,8 @@
     ];
     $pageTitle = 'حسابي — ' . $persona['label'];
     $hubStats = [
-        'my_requests' => $user ? \App\Models\ServiceRequest::query()->where('user_id', $user->id)->count() : 0,
+        // من الـ API المنفصل (يُحقنه AuthController@dashboard) بدل DB محلية
+        'my_requests' => $myRequestsCount ?? 0,
     ];
     $dashboardMenu = \App\Support\DashboardRegistry::menuFor($frontTypes, $isAdmin ? 'admin' : 'user');
     foreach ($dashboardMenu as &$grp) {
@@ -332,7 +333,7 @@ window.AMRTM_ROUTES = {
     adminDashboard:'{{ route("amrtm.admin.dashboard") }}',
     mainSite:      '{{ url("/") }}',
 };
-window.AMRTM_HYPERPAY_ENABLED = @json(app(\App\Services\HyperPayService::class)->isConfigured());
+window.AMRTM_HYPERPAY_ENABLED = {{ env('HYPERPAY_ENABLED', false) ? 'true' : 'false' }};
 @if(session('payment_success'))
 window._paymentMsg = {type:'success', text: '{{ session("payment_success") }}'};
 @elseif(session('payment_error'))
@@ -363,10 +364,10 @@ let reqFilter='all';
 
 /* ══ INIT ══ */
 async function init(){
-  // Require login
-  if(typeof Auth!=='undefined'&&!Auth.isLoggedIn()){
-    window.location.href=((AMRTM_ROUTES&&AMRTM_ROUTES.login)||'/login')+'?redirect='+encodeURIComponent(location.href);return;
-  }
+  // النسخة النظيفة: الوصول مضمون عبر الجلسة خادمياً — لا إعادة توجيه تلقائية
+  // if(typeof Auth!=='undefined'&&!Auth.isLoggedIn()){
+  //   window.location.href=((AMRTM_ROUTES&&AMRTM_ROUTES.login)||'/login')+'?redirect='+encodeURIComponent(location.href);return;
+  // }
   const u=typeof Auth!=='undefined'?Auth.getUser():null;
   applyLang(lang);
   const _ptEl=document.getElementById('dash-page-title');

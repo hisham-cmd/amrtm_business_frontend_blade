@@ -2,15 +2,36 @@
 
 namespace App\Models;
 
+use App\Enums\UserRole;
+use Database\Factories\UserFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-/**
- * مستخدم وهمي محلي — لا يُستخدم أبداً في النسخة النظيفة.
- * موجود فقط لإرضاء إعدادات Laravel الافتراضية (config/auth).
- * كل المصادقة الفعلية تحدث في الباك اند عبر BackendApi.
- */
 class User extends Authenticatable
 {
-    /** لا جدول — نسخة نظيفة بلا قاعدة بيانات محلية. */
-    protected $table = null;
+    /** @use HasFactory<UserFactory> */
+    use HasFactory, Notifiable;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'phone',
+        'role',
+        'password',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password'          => 'hashed',
+            'role'              => UserRole::class,
+        ];
+    }
 }

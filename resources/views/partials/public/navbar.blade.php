@@ -1,16 +1,41 @@
 @php
-    $user = $user ?? auth('business')->user() ?? auth('office')->user();
-    $authed = $user !== null;
+    // التعرف على حالة الدخول مباشرة من الجلسة + الـ API (لا نعتمد على composer لـ partials)
+    $cUser = null;
+    try { $sessToken = request()->session()->get('amrtm_api_token'); } catch (Throwable $e) { $sessToken = null; }
+    if ($sessToken) {
+        try {
+            $resp = (new \App\Support\BackendApiWithToken($sessToken))->call('GET', '/api/v1/auth/me');
+            $vv = $resp->get('value');
+            $arr = is_array($vv) ? ($vv['user'] ?? null) : null;
+            if ($arr) {
+                $cUser = new \stdClass();
+                $cUser->id = $arr['id'] ?? null;
+                $cUser->name = $arr['name'] ?? '';
+                $cUser->email = $arr['email'] ?? '';
+                $cUser->phone = $arr['phone'] ?? '';
+                $cUser->role = $arr['role'] ?? 'user';
+                $cUser->account_type = $arr['account_type'] ?? 'individual';
+                $cUser->is_admin = in_array($cUser->role, ['admin','supervisor'], true);
+            }
+        } catch (Throwable $e) {}
+    }
+    $user = $frontUser ?? $user ?? $cUser ?? auth('business')->user() ?? auth('office')->user();
+    $authed = $user !== null || ($frontAuthed ?? false);
     $isOffice = $authed && $user instanceof \App\Models\Business\OfficeUser;
     $isActive = $active ?? 'home';
     $isHomepage = request()->routeIs('amrtm.index');
-    $isAdminUser = $authed && !$isOffice && method_exists($user, 'isAdmin') && $user->isAdmin();
+    $isAdminUser = $authed && !$isOffice && (
+        (is_array($user) && ($user['is_admin'] ?? false))
+        || (is_object($user) && property_exists($user, 'is_admin') && $user->is_admin)
+        || (is_object($user) && in_array($user->role ?? 'user', ['admin', 'supervisor'], true))
+        || (is_array($user) && in_array($user['role'] ?? 'user', ['admin', 'supervisor'], true))
+    );
     $dashUrl = $isOffice
         ? route('amrtm.office.dashboard')
         : ($isAdminUser ? route('amrtm.admin.dashboard') : route('amrtm.user.dashboard'));
     $logoutUrl = $isOffice ? route('amrtm.office.logout') : route('amrtm.logout');
     $dashLabel = ($isOffice || $isAdminUser) ? 'لوحة التحكم' : 'حسابي';
-    $officeLogoUrl = $isOffice && $user->office
+    $officeLogoUrl = ($isOffice && $user instanceof \App\Models\Business\OfficeUser && property_exists($user, 'office') && $user->office && property_exists($user->office, 'logo_url'))
         ? $user->office->logo_url
         : null;
 @endphp
@@ -61,7 +86,7 @@
             </div>
 
             <!-- Guest Buttons -->
-            <div id="nb-guest" class="{{ $authed ? 'hidden' : 'flex' }} items-center gap-2">
+            <div id="nb-guest" class="items-center gap-2" style="{{ $authed ? 'display:none!important' : 'display:flex!important' }}">
                 <a href="{{ route('amrtm.login') }}" id="nb-li"
                    class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-gray-700 no-underline transition-all duration-200 hover:bg-gray-50 sm:px-4">
                     <i class="fa fa-right-to-bracket text-sm"></i><span id="nl-li" class="hidden sm:inline">دخول</span>
@@ -78,7 +103,7 @@
             </div>
 
             <!-- Auth Buttons -->
-            <div id="nb-auth" class="{{ $authed ? 'flex' : 'hidden' }} items-center gap-2">
+            <div id="nb-auth" class="items-center gap-2" style="{{ $authed ? 'display:flex!important' : 'display:none!important' }}">
                 @if($user)
                     <a class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-gray-700 no-underline transition-all duration-200 hover:bg-gray-50" id="nb-dash-lnk"
                        href="{{ $dashUrl }}">

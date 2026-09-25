@@ -1,4 +1,4 @@
-﻿@extends('layouts.public')
+@extends('layouts.public')
 
 @section('title', 'التصميم ٢ — آمر تم | Amrtm Platform')
 
@@ -3780,7 +3780,7 @@
 
 @section('content')
     <!-- OFFICIAL NAVBAR (shared partial) -->
-    @include('partials.public.navbar', ['active' => 'home'])
+    @include('partials.public.navbar', ['active' => 'home', 'frontUser' => $frontUser ?? null, 'frontAuthed' => $frontAuthed ?? false, 'user' => $user ?? null])
 
     <!-- HERO -->
     <section class="hero">

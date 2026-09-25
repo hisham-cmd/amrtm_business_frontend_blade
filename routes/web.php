@@ -83,6 +83,24 @@ Route::get('/provider-account/create', fn () => view('update_service.provider-ac
 /* ═══ مسارات اللوحات الإدارية (خارج النطاق — توجيه للرئيسية) ═══ */
 Route::get('/office/login', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.login');
 Route::post('/office/logout', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.logout');
-Route::get('/admin', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.dashboard');
+Route::get('/admin', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.dashboard');
 Route::get('/office/dashboard', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.dashboard');
 Route::get('/office', fn () => redirect()->route('amrtm.index'));
+
+/* ═══ أسماء routes اسمية (تُعيد للرئيسية — تمنع RouteNotFound في القوالب) ═══ */
+Route::get('/dashboard-hub', fn () => redirect()->route('amrtm.user.dashboard'))->name('amrtm.dashboard.hub');
+Route::post('/office/complete/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.complete.save');
+Route::get('/admin/messages', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.messages');
+Route::get('/admin/offices/create-form', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.offices.create-form');
+Route::post('/admin/org-structure/toggle', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.org-structure.toggle');
+Route::get('/admin/api/homepage/settings', fn () => response()->json([]))->name('amrtm.admin.api.homepage.settings');
+Route::post('/admin/api/homepage/settings/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.api.homepage.settings.save');
+Route::get('/admin/api/homepage/slides', fn () => response()->json([]))->name('amrtm.admin.api.homepage.slides');
+Route::post('/admin/api/homepage/slides/reorder', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.api.homepage.slides.reorder');
+Route::post('/admin/api/homepage/slides/store', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.api.homepage.slides.store');
+Route::get('/admin/api/icons/list', fn () => response()->json([]))->name('amrtm.api.admin.icons.list');
+Route::post('/admin/api/icons/upload', fn () => redirect()->route('amrtm.index'))->name('amrtm.api.admin.icons.upload');
+Route::post('/admin/api/icons/delete', fn () => redirect()->route('amrtm.index'))->name('amrtm.api.admin.icons.delete');
+Route::post('/admin/api/offices/create', fn () => redirect()->route('amrtm.index'))->name('amrtm.api.admin.offices.create');
+Route::get('/offices/law/info', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.law.info');
+Route::get('/offices/services/info', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.services.info');

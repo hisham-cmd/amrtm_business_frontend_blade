@@ -2,80 +2,98 @@
 
 namespace App\Providers;
 
-use App\Models\Business\BusinessUser;
-use App\Models\ServiceRequest;
-use App\Policies\ServiceRequestPolicy;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\URL;
+use App\Support\BackendApiWithToken;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
+    private ?array $cachedUser = null;
+    private bool $fetched = false;
+
     public function register(): void {}
 
+    /**
+     * النسخة النظيفة: لا Models ولا DB محلية.
+     * نضخ «المستخدم الحالي» من الـ API المنفصل إلى كل قالب:
+     * - frontUser / frontAuthed → يستهلكه الناف بار (nb-auth / nb-guest).
+     * - نثبّت المستخدم على حارس business عبر setUser (بلا DB) → أي كود
+     *   قديم يستدعي auth('business')->check()/user() يرى الحالة.
+     */
     public function boot(): void
     {
-        Schema::defaultStringLength(191);
+        View::composer('*', function ($view) {
+            $userObj = $this->apiUserObject();
+            $view->with('frontUser', $userObj);
+            $view->with('frontAuthed', $userObj !== null);
+            $view->with('currentAuthUser', $userObj);
 
-        // Force HTTPS in production or when running behind an SSL-terminating reverse proxy (Render, Cloudflare, etc.)
-        if (
-            $this->app->environment('production') ||
-            request()->header('X-Forwarded-Proto') === 'https' ||
-            request()->server('HTTP_X_FORWARDED_PROTO') === 'https'
-        ) {
-            URL::forceScheme('https');
+            if ($userObj) {
+                try {
+                    Auth::guard('business')->setUser($userObj);
+                } catch (\Throwable) {
+                }
+            }
+        });
+    }
+
+    /** كائن مستخدم خفيف (أو null) من الـ API — مجلوب مرة واحدة لكل طلب */
+    private function apiUserObject(): ?\stdClass
+    {
+        $user = $this->apiUser();
+        if (!$user) {
+            return null;
         }
 
-        // Register policy for service requests
-        Gate::policy(ServiceRequest::class, ServiceRequestPolicy::class);
+        $u = new \stdClass();
+        $u->id           = $user['id'] ?? null;
+        $u->name         = $user['name'] ?? '';
+        $u->email        = $user['email'] ?? '';
+        $u->phone        = $user['phone'] ?? '';
+        $u->role         = $user['role'] ?? 'user';
+        $u->account_type = $user['account_type'] ?? 'individual';
+        $u->is_active    = true;
+        $u->is_admin     = in_array($u->role, ['admin', 'supervisor'], true);
 
-        // Use business guard for policy checks in business platform
-        Gate::before(function (BusinessUser $user, string $ability) {
-            // admin can do anything except user-only actions (handled per policy)
-        });
+        return $u;
+    }
 
-        // Rate limiters
-        RateLimiter::for('business-login', function (Request $request) {
-            return Limit::perMinute(5)->by($request->ip())
-                ->response(function () use ($request) {
-                    if ($request->expectsJson()) {
-                        return response()->json(['message' => 'محاولات كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مجدداً.'], 429);
-                    }
-                    return back()
-                        ->withErrors(['email' => 'محاولات كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مجدداً.'])
-                        ->withInput($request->only('email'));
-                });
-        });
+    private function token(): ?string
+    {
+        try {
+            $s = app('session.store');
 
-        RateLimiter::for('business-register', function (Request $request) {
-            return Limit::perMinute(3)->by($request->ip())
-                ->response(function () use ($request) {
-                    if ($request->expectsJson()) {
-                        return response()->json(['message' => 'محاولات تسجيل كثيرة جداً. يرجى الانتظار ثم المحاولة مجدداً.'], 429);
-                    }
-                    return back()
-                        ->withErrors(['email' => 'محاولات تسجيل كثيرة جداً. يرجى الانتظار ثم المحاولة مجدداً.'])
-                        ->withInput($request->only('name', 'email', 'phone'));
-                });
-        });
+            return $s->get('amrtm_api_token');
+        } catch (\Throwable) {
+            return request()->session()->get('amrtm_api_token');
+        }
+    }
 
-        RateLimiter::for('business-api', function (Request $request) {
-            return Limit::perMinute(60)->by(
-                auth('business')->id() ?? $request->ip()
-            );
-        });
+    private function apiUser(): ?array
+    {
+        if ($this->fetched) {
+            return $this->cachedUser;
+        }
+        $this->fetched = true;
 
-        RateLimiter::for('nafath-verify', function (Request $request) {
-            return Limit::perMinute(5)->by($request->ip())
-                ->response(function () use ($request) {
-                    return response()->json([
-                        'message' => 'محاولات بدء تحقق كثيرة جداً. يرجى الانتظار دقيقة ثم المحاولة مجدداً.',
-                    ], 429);
-                });
-        });
+        $token = $this->token();
+        if (!$token) {
+            return $this->cachedUser = null;
+        }
+
+        try {
+            $resp  = (new BackendApiWithToken($token))->call('GET', '/api/v1/auth/me');
+            $value = $resp->get('value');
+            $user  = is_array($value) ? ($value['user'] ?? null) : null;
+        } catch (\Throwable) {
+            $user = null;
+        }
+
+        if ($user === null) {
+            try { request()->session()->forget('amrtm_api_token'); } catch (\Throwable) {}
+        }
+
+        return $this->cachedUser = $user;
     }
 }

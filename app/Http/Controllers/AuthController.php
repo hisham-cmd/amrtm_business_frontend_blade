@@ -35,33 +35,33 @@ class AuthController extends Controller
             'password' => $request->input('password'),
         ]);
 
+        // تشخيص سريري موجز
+        \Illuminate\Support\Facades\Log::info('PW-LOGIN email=' . $request->input('email'));
+
         // استخراج التوكن من المغلف { isSuccess, value: { token }, error }
         $value = $data->get('value');
         $token = is_array($value) ? ($value['token'] ?? null) : ($data->get('token') ?? null);
         if (!$token && $value instanceof \Illuminate\Support\Collection) {
             $token = $value->get('token');
         }
+        \Illuminate\Support\Facades\Log::info('PW-LOGIN token=' . ($token ? 'OK' : 'NULL'));
         if (!$token) {
             $err  = $data->get('error');
             $msg  = is_array($err) ? ($err['message'] ?? 'فشل الدخول.') : 'فشل الدخول.';
 
             // التوجيه الصريح بدل back() — مضمون كنوع RedirectResponse (يتفادى TypeError)
-            return redirect()->route('amrtm.login')
-                ->withErrors(['email' => $msg])
-                ->withInput();
+            return redirect()->route('amrtm.login')->withErrors(['email' => $msg]);
         }
 
         // تخزين التوكن في الجلسة (آمن، يمر عبر Laravel session مع web middleware)
         session(['amrtm_api_token' => $token]);
 
-        // توجيه الوجهة: قيمة غير فارغة من النموذج، وإلا لوحة المستخدم
-        $redirect = trim((string) $request->input('redirect', ''));
-        if ($redirect === '') {
-            $redirect = route('amrtm.user.dashboard');
-        }
+        // توجيه حسب نوع الحساب: مدير/مشرف → لوحة الإدارة، وإلا لوحة العميل
+        $isAdmin = is_array($value)
+            ? in_array($value['user']['role'] ?? '', ['admin', 'supervisor'], true)
+            : in_array(($value->get('user')['role'] ?? ''), ['admin', 'supervisor'], true);
 
-        // نضمن نصاً غير فارغ دائماً → redirect() تعيد RedirectResponse
-        return redirect($redirect);
+        return redirect()->route($isAdmin ? 'amrtm.admin.dashboard' : 'amrtm.user.dashboard');
     }
 
     /** معالجة POST التسجيل (إنشاء حساب عميل) */
@@ -126,33 +126,120 @@ class AuthController extends Controller
         return (new \App\Support\BackendApiWithToken($token))->call($method, $path, $body);
     }
 
-    /** لوحة المستخدم — GET /api/v1/dashboard/user + /requests + /payments/history */
+    /** لوحة الإدارة — القالب الأصلي (supervisor) عبر بيانات الـ API */
+    public function adminDashboard(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    {
+        if (!$this->token()) {
+            return redirect()->route('amrtm.login');
+        }
+
+        $apiUser = $this->apiUserFromSession();
+        $isAdmin = in_array($apiUser['role'] ?? '', ['admin', 'supervisor'], true);
+        if (!$isAdmin) {
+            return redirect()->route('amrtm.user.dashboard');
+        }
+
+        $stats = $this->callAuthed('GET', '/api/v1/dashboard/admin');
+        if ($stats->has('value')) { $v = $stats->get('value'); $stats = collect(is_array($v) ? $v : []); }
+
+        $qty = fn($k) => (int) (is_object($stats) ? ($stats->get($k) ?? 0) : ($stats[$k] ?? 0));
+
+        $persona = [
+            'key'   => $apiUser['role'] ?? 'admin',
+            'label' => ($apiUser['role'] ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',
+            'types' => ['admin'],
+            'name'  => $apiUser['name'] ?? '',
+        ];
+        $dashboardMenu = [
+            ['label' => 'الرئيسية', 'items' => [
+                ['href' => route('amrtm.admin.dashboard'), 'ar' => 'نظرة عامة', 'en' => 'Overview', 'icon' => 'ti-dashboard', 'count' => null],
+            ]],
+            ['label' => 'الإدارة', 'items' => [
+                ['href' => route('amrtm.index'), 'ar' => 'الموقع العام', 'en' => 'Website', 'icon' => 'ti-world', 'count' => null],
+            ]],
+        ];
+        $pageTitle = 'لوحة التحكم — ' . $persona['label'];
+
+        return view('update_service.api.admin', compact('stats', 'persona', 'dashboardMenu', 'pageTitle', 'apiUser', 'qty'));
+    }
+
+    /** لوحة المستخدم — القالب الأصلي (user_dashboard) مع بيانات الـ API */
     public function dashboard(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
     {
+        \Illuminate\Support\Facades\Log::info('PW-DASH in token=' . ($this->token() ? 'Y' : 'N'));
         if (!$this->token()) {
             return redirect()->route('amrtm.login');
         }
 
         $stats    = $this->callAuthed('GET', '/api/v1/dashboard/user');
         $requests = $this->callAuthed('GET', '/api/v1/requests');
+        $payments = $this->callAuthed('GET', '/api/v1/payments/history');
 
-        // الاستخراج من المغلف { value: {...} } إن وجد (مستوى واحد)
-        if ($stats->has('value')) {
-            $v = $stats->get('value');
-            $stats = collect(is_array($v) ? $v : []);
-        }
-        if ($requests->has('value')) {
-            $v = $requests->get('value');
-            $requests = collect(is_array($v) ? $v : []);
-        }
-        if ($requests->has('requests')) {
-            $requests = collect($requests->get('requests', []));
-        }
+        // فك المغلف { value: {...} }
+        if ($stats->has('value')) { $v = $stats->get('value'); $stats = collect(is_array($v) ? $v : []); }
+        if ($requests->has('value')) { $v = $requests->get('value'); $requests = collect(is_array($v) ? $v : []); }
+        if ($payments->has('value')) { $v = $payments->get('value'); $payments = collect(is_array($v) ? $v : []); }
 
-        return view('update_service.api.dashboard', [
-            'stats'    => $stats,
-            'requests' => collect($requests->get('data', $requests->all()))->values(),
-        ]);
+        $requestsList = collect($requests->get('data', $requests->all()))->values();
+        $myRequestsCount = $requestsList->count();
+
+        // بناء المتغيرات التي يتوقعها layouts/dashboard + user_dashboard الأصلي
+        $apiUser  = $this->apiUserFromSession();
+        $persona = [
+            'key'   => 'business',
+            'label' => 'مستخدم',
+            'types' => ['business'],
+            'name'  => $apiUser['name'] ?? 'مستخدم',
+        ];
+        $dashboardMenu = [
+            ['label' => 'الرئيسية', 'items' => [
+                ['href' => route('amrtm.user.dashboard'), 'ar' => 'نظرة عامة', 'en' => 'Overview', 'icon' => 'ti-dashboard', 'count' => null],
+                ['href' => route('amrtm.index'),          'ar' => 'الموقع العام', 'en' => 'Website', 'icon' => 'ti-world', 'count' => null],
+            ]],
+            ['label' => 'طلباتي', 'items' => [
+                ['href' => route('amrtm.index'), 'ar' => 'طلبات جديدة', 'en' => 'New', 'icon' => 'ti-file-plus', 'count' => null],
+                ['href' => route('amrtm.request.track', ['id' => 1]), 'ar' => 'تتبع الطلبات', 'en' => 'Track', 'icon' => 'ti-route', 'count' => null],
+            ]],
+            ['label' => 'المالية والعقود', 'items' => [
+                ['href' => route('amrtm.payment.checkout'), 'ar' => 'دفع الخدمات', 'en' => 'Pay', 'icon' => 'ti-wallet', 'count' => null],
+                ['href' => route('amrtm.contracts.my'), 'ar' => 'عقودي', 'en' => 'Contracts', 'icon' => 'ti-file-contract', 'count' => null],
+            ]],
+        ];
+        $hubStats = [
+            'requests' => $requestsList->count(),
+            'services' => 0,
+            'contracts'=> 0,
+        ];
+        $pageTitle = 'لوحة التحكم — مستخدم';
+        $user = (object) $apiUser;
+        $isAdmin = false;
+
+        try {
+            return view('update_service.user_dashboard', compact(
+                'stats', 'requests', 'requestsList', 'payments',
+                'persona', 'dashboardMenu', 'hubStats', 'pageTitle', 'user', 'isAdmin', 'myRequestsCount'
+            ));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('user_dashboard fallback: ' . $e->getMessage());
+
+            // نسخة احتياطية أنيقة (لا تعتمد على نماذج) — نفس السايدبار عبر layouts.dashboard
+            return view('update_service.api.dashboard', compact(
+                'stats', 'requests', 'requestsList', 'payments', 'persona', 'dashboardMenu', 'pageTitle', 'user'
+            ));
+        }
+    }
+
+    /** المستخدم الحالي من الجلسة عبر الـ API (مصفوفة) */
+    private function apiUserFromSession(): ?array
+    {
+        $token = $this->token();
+        if (!$token) {
+            return null;
+        }
+        $resp = (new \App\Support\BackendApiWithToken($token))->call('GET', '/api/v1/auth/me');
+        $value = $resp->get('value');
+
+        return is_array($value) ? ($value['user'] ?? null) : null;
     }
 
     /** تتبع طلب — بيانات من الـ API */
