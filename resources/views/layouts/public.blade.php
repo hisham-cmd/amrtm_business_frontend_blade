@@ -16,6 +16,10 @@
     @stack('styles')
 </head>
 <body class="{{ $bodyClass }}">
+    <script>
+        // حقن المستخدم الحالي (من الجلسة عبر الـ API) — يعتمد عليه Auth.isLoggedIn() في السكربتات
+        window.AMRTM_USER = @json($frontUser ?? null);
+    </script>
     @yield('content')
 
     <x-ui.notifications />
