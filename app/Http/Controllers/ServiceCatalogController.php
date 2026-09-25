@@ -172,7 +172,25 @@ class ServiceCatalogController extends Controller
         $typeConfig = $data->get('config', []);
         $typeConfig = $typeConfig instanceof \Illuminate\Support\Collection ? $typeConfig->all() : (array) $typeConfig;
 
-        $specialties = collect($raw);
+        $specialties = collect($raw)->map(function ($s) {
+            $s = $s instanceof \Illuminate\Support\Collection ? $s->all() : (array) $s;
+            $servicesRaw = $s['services'] ?? [];
+            $servicesRaw = $servicesRaw instanceof \Illuminate\Support\Collection ? $servicesRaw->all() : (array) $servicesRaw;
+
+            // القالب يتوقع: specialty (كائن له name_ar/name_en) + services (مصفوفة) + عدّادات
+            return [
+                'id'             => $s['id'] ?? null,
+                'name_ar'        => $s['name_ar'] ?? '',
+                'name_en'        => $s['name_en'] ?? '',
+                'services_count' => (int) ($s['services_count'] ?? count($servicesRaw)),
+                'offices_count'  => (int) ($s['offices_count'] ?? 0),
+                'specialty'      => (object) [
+                    'name_ar' => $s['name_ar'] ?? '',
+                    'name_en' => $s['name_en'] ?? ($s['name_ar'] ?? ''),
+                ],
+                'services'       => array_map(fn($svc) => (array) $svc, $servicesRaw),
+            ];
+        });
         $cfg = [
             'icon'    => $typeConfig['icon'] ?? 'ti-building',
             'color'   => $typeConfig['color'] ?? '#006C35',
@@ -185,7 +203,8 @@ class ServiceCatalogController extends Controller
             'desc_ar' => $typeConfig['desc_ar'] ?? '',
         ];
         $totalOffices = $data->get('total_offices', 0);
+        $specialtiesCount = $specialties->count();
 
-        return view('update_service.office_directory', compact('type', 'specialties', 'cfg', 'totalOffices'));
+        return view('update_service.office_directory', compact('type', 'specialties', 'cfg', 'totalOffices', 'specialtiesCount'));
     }
 }
