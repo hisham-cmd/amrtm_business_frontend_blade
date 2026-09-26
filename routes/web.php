@@ -36,8 +36,7 @@ Route::get('/sign-up', [AuthController::class, 'showRegister'])->name('register'
 Route::post('/register', [AuthController::class, 'register'])->name('amrtm.register.submit');
 Route::post('/logout', [AuthController::class, 'logout'])->name('amrtm.logout');
 
-/* ═══ نفاذ (عرض فقط — غير مفعّل، يَظهر للمستخدم إشعار) ═══ */
-Route::get('/nafath', fn (Illuminate\Http\Request $rq) => view('update_service.nafath.verify', [
+/* ═══ نفاذ (عرض فقط — غير مفعّل، يَظهر للمستخدم إشعار) ═══ */Route::get('/nafath', fn (Illuminate\Http\Request $rq) => view('update_service.nafath.verify', [
     'intent'            => $rq->input('intent', 'login'),
     'initialNationalId' => $rq->input('national_id', ''),
     'nafathConfigured'  => false,
@@ -80,14 +79,15 @@ Route::get('/contracts/{id}', fn () => view('update_service.contract_show', [
 /* ═══ تسجيل مزود/مستشار/عميل ═══ */
 Route::get('/provider-account/create', fn () => view('update_service.provider-account'))->name('amrtm.provider.account.create');
 
-/* ═══ مسارات اللوحات الإدارية (خارج النطاق — توجيه للرئيسية) ═══ */
-Route::get('/office/login', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.login');
+/* ═══ لوحات المكاتب (حساب مكتب — type=office) ═══ */
+Route::get('/office/login', fn () => redirect()->route('amrtm.login'))->name('amrtm.office.login');
 Route::post('/office/logout', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.logout');
-Route::get('/admin', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.dashboard');
-Route::get('/office/dashboard', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.dashboard');
-Route::get('/office', fn () => redirect()->route('amrtm.index'));
+Route::get('/office/dashboard', [AuthController::class, 'officeDashboard'])->name('amrtm.office.dashboard');
+Route::get('/office', fn () => redirect()->route('amrtm.office.dashboard'));
 
 /* ═══ لوحات الإدارة — التبويبات (تعرض عبر adminDashboard) ═══ */
+Route::get('/admin', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.dashboard');
+Route::get('/admin/overview', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.overview');
 Route::get('/admin/requests', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.requests');
 Route::get('/admin/offices', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.offices');
 Route::get('/admin/offices/create-form', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.offices.create-form');
@@ -104,15 +104,54 @@ Route::get('/admin/permissions', [AuthController::class, 'adminDashboard'])->nam
 Route::get('/admin/settings', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.settings');
 Route::get('/admin/finance', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.finance');
 Route::get('/admin/off-finance', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.off-finance');
-Route::get('/admin/messages', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.messages');
-Route::get('/admin/homepage', [AuthController::class, 'adminDashboard'])->name('amrtm.admin.homepage');
+
+/* ═══ لوحات الإدارة — صفحات مستقلة (قوالب layouts.dashboard خاصة) ═══ */
+Route::get('/admin/messages', [AuthController::class, 'adminMessages'])->name('amrtm.admin.messages');
+Route::get('/admin/homepage', [AuthController::class, 'adminHomepage'])->name('amrtm.admin.homepage');
+Route::get('/admin/icons', [AuthController::class, 'adminIcons'])->name('amrtm.admin.icons');
+Route::get('/admin/org-structure', [AuthController::class, 'adminOrgStructure'])->name('amrtm.admin.org-structure');
 
 /* ═══ أسماء routes اسمية (تُعيد للرئيسية — تمنع RouteNotFound في القوالب) ═══ */
-Route::get('/dashboard-hub', fn () => redirect()->route('amrtm.user.dashboard'))->name('amrtm.dashboard.hub');
+Route::get('/dashboard-hub', [AuthController::class, 'hub'])->name('amrtm.dashboard.hub');
 Route::post('/office/complete/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.complete.save');
-Route::get('/admin/messages', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.messages');
 Route::get('/admin/offices/create-form', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.offices.create-form');
-Route::post('/admin/org-structure/toggle', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.org-structure.toggle');
+Route::post('/admin/org-structure/toggle', fn () => redirect()->route('amrtm.admin.org-structure'))->name('amrtm.admin.org-structure.toggle');
+/*
+ | ═══ نداءات لوحة إدارة الواجهة (homepage / icons / offices) ═══
+ | ⚠️ ملاحظة مهمة: الوكيل العام Route::get('/api/{path}') مسجَّل في
+ | routes/api.php وهو يلتقط /api/* قبل web routes، فيمرّرها للباك اند.
+ | لذلك المسارات أدناهчи shadows名副其实 — الغرض منها فقط توفير
+ | أسماء route() المستخدمة في القوالب (route('amrtm.admin.api.homepage...'))
+ | حتى لا يحدث RouteNotFoundException. أي طلب فعلي يذهب للـ proxy.
+ |
+ | الباك اند يخدم تحت /api/v1/admin/... والـ proxy يضيف v1 تلقائياً،
+ | لذا المسار الصحيح من الواجهة هو /api/admin/homepage/...
+ */
+/*
+ | ═══ مسار تشخيص مؤقت (يُحذف بعد الفحص) ═══
+ */
+Route::match(['get', 'post'], '/__diag', function (\Illuminate\Http\Request $request) {
+    $files = $request->allFiles();
+    $out = [];
+    foreach ($files as $key => $uploads) {
+        $out[$key . '__type'] = gettype($uploads);
+        $out[$key . '__arr']  = is_array($uploads) ? array_map(fn ($x) => is_object($x) ? get_class($x) : gettype($x), $uploads) : null;
+        $out[$key . '__obj']  = is_object($uploads) ? get_class($uploads) : null;
+        $first = is_array($uploads) ? ($uploads[array_key_first($uploads)] ?? null) : $uploads;
+        $out[$key . '__first'] = is_object($first) ? get_class($first) : gettype($first);
+        $out[$key . '__detail'] = $first instanceof \Illuminate\Http\UploadedFile
+            ? ['orig' => $first->getClientOriginalName(), 'mime' => $first->getMimeType(), 'err' => $first->getError(), 'size' => $first->getSize()]
+            : (is_array($first) ? $first : null);
+    }
+    return response()->json([
+        'content_type' => $request->header('Content-Type'),
+        'isMultipart'  => str_contains((string) $request->header('Content-Type'), 'multipart'),
+        'allFiles'     => $out,
+        'all'          => array_keys($request->all()),
+        'input'        => $request->except(array_keys($files)),
+    ]);
+})->name('amrtm.diag');
+
 Route::get('/admin/api/homepage/settings', fn () => response()->json([]))->name('amrtm.admin.api.homepage.settings');
 Route::post('/admin/api/homepage/settings/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.api.homepage.settings.save');
 Route::get('/admin/api/homepage/slides', fn () => response()->json([]))->name('amrtm.admin.api.homepage.slides');

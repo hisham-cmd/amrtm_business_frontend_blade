@@ -4,8 +4,10 @@
 
 @section('dashboard-content')
 @php
-    $user = auth('business')->user();
-    $isAdmin = $user && method_exists($user, 'isAdmin') && $user->isAdmin();
+    // مصدر واحد للحقيقة: AppServiceProvider → /api/v1/auth/me
+    $user = $currentAuthUser ?? $frontUser ?? auth('business')->user();
+    $isAdmin = (bool) ($user->is_admin ?? false)
+        || in_array($user->role ?? 'user', ['admin', 'supervisor'], true);
     $frontType = $isAdmin
         ? \App\Support\DashboardRegistry::TYPE_ADMIN
         : (($user->account_type ?? '') === 'establishment'
@@ -18,7 +20,7 @@
             ? ($user->role === 'supervisor' ? 'مشرف' : 'مدير النظام')
             : \App\Support\DashboardRegistry::types()[$frontType]['ar'],
         'types' => $frontTypes,
-        'name' => $user->name ?? '',
+        'name' => ($user->name ?? '') !== '' ? $user->name : 'مستخدم',
     ];
     $pageTitle = 'حسابي — ' . $persona['label'];
     $hubStats = [
@@ -141,7 +143,8 @@ body.en .cm-x{margin-right:0;margin-left:auto;}
   @push('dash-actions')
     <!-- زر المحادثات — يفتح أحدث طلب داخل صفحة التتبع (حيث المحادثة مع المكتب) -->
     <x-ui.button class="tb-btn" onclick="openLatestTrack()" title="المحادثات" aria-label="المحادثات"><i class="ti ti-messages text-xl"></i></x-ui.button>
-    <div class="lng"><div class="lt on" id="la" onclick="setLang('ar')">AR</div><div class="lt" id="le" onclick="setLang('en')">EN</div></div>
+    {{-- مبدّل اللغة: معرّفات مختلفة عن الناف bar الموحّد لتفادي تكرار la/le --}}
+    <div class="lng"><div class="lt on" id="dash-la" onclick="window.AMRTM_SET_LANG ? window.AMRTM_SET_LANG('ar') : (typeof setLang==='function' &amp;&amp; setLang('ar'))">AR</div><div class="lt" id="dash-le" onclick="window.AMRTM_SET_LANG ? window.AMRTM_SET_LANG('en') : (typeof setLang==='function' &amp;&amp; setLang('en'))">EN</div></div>
     <x-ui.button class="tb-btn" onclick="openChargeModal()"><i class="ti ti-plus"></i><span id="tb-charge">شحن الرصيد</span></x-ui.button>
   @endpush
 

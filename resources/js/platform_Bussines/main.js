@@ -620,8 +620,12 @@ function setLang(l) {
     document.documentElement.setAttribute("lang", l);
     document.documentElement.setAttribute("dir", l === "ar" ? "rtl" : "ltr");
     document.body.className = l;
-    document.getElementById("la").classList.toggle("on", l === "ar");
-    document.getElementById("le").classList.toggle("on", l === "en");
+    // أزرار اللغة: الناف bar الموحّد (la/le) وترويسة اللوحة (dash-la/dash-le)
+    // كان الاستعلام مباشراً فيرمي TypeError على صفحات اللوحة (لا يوجد #la هناك).
+    [["#la", "ar"], ["#le", "en"], ["#dash-la", "ar"], ["#dash-le", "en"]].forEach(function (pair) {
+        var el = document.querySelector(pair[0]);
+        if (el) el.classList.toggle("on", l === pair[1]);
+    });
     applyLang(l);
     renderCards();
 }

@@ -5,21 +5,41 @@
 @section('content')
 @php
     $currentPath = request()->path();
-    $dashPersona = $persona ?? ['name' => 'مستخدم', 'label' => '', 'key' => '', 'types' => []];
-    $firstName = explode(' ', $dashPersona['name'])[0];
+    // مصدر واحد للحقيقة: AppServiceProvider → /api/v1/auth/me
+    $dashAuthUser = $currentAuthUser ?? $frontUser ?? null;
+    $dashAuthed   = ($frontAuthed ?? false) || $dashAuthUser !== null;
+    $dashPersona  = $persona ?? [
+        'name'  => $dashAuthUser->name ?? 'مستخدم',
+        'label' => in_array($dashAuthUser->role ?? '', ['admin', 'supervisor'], true) ? 'مدير النظام' : 'مستخدم',
+        'key'   => 'business',
+        'types' => ['business'],
+    ];
+    if (($dashPersona['name'] ?? '') === '' && $dashAuthUser) {
+        $dashPersona['name'] = $dashAuthUser->name;
+    }
+    $firstName = trim(explode(' ', (string) ($dashPersona['name'] ?? 'مستخدم'))[0]);
     $officeLogoUrl = isset($office) && $office ? $office->logo_url : null;
+
+    // رابط «الصفحة الرئيسية للوحة» — يُحسب مباشرة بدل /dashboard-hub
+    // الذي كان يعيد التوجيه دائماً إلى لوحة العميل حتى للمدير.
+    $dashHomeUrl = ($dashPersona['types'][0] ?? 'business') === \App\Support\DashboardRegistry::TYPE_ADMIN
+        ? route('amrtm.admin.dashboard')
+        : (($dashPersona['key'] ?? '') === 'office' ? route('amrtm.office.dashboard') : route('amrtm.user.dashboard'));
 @endphp
+
+{{-- ══ الناف بار الموحّد (نفس partial المستخدم في كل صفحات الموقع) ═══════ --}}
+@include('partials.public.navbar', ['active' => ''])
 
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900">
     {{-- ══ Sidebar (Flowbite Drawer, right placement for RTL) ═══════════════════ --}}
     <aside
         id="dash-sidebar"
         aria-label="Sidebar"
-        class="fixed inset-y-0 right-0 z-40 flex h-screen w-72 flex-col border-l border-gray-200 bg-white transition-transform duration-300 ease-in-out translate-x-full dark:border-gray-700 dark:bg-gray-800 lg:translate-x-0"
+        class="fixed bottom-0 right-0 top-[72px] z-40 flex h-[calc(100vh-72px)] w-72 flex-col border-l border-gray-200 bg-white transition-transform duration-300 ease-in-out translate-x-full dark:border-gray-700 dark:bg-gray-800 lg:translate-x-0"
     >
         {{-- Brand --}}
         <div class="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-            <a href="{{ route('amrtm.dashboard.hub') }}" class="flex items-center gap-2.5">
+            <a href="{{ $dashHomeUrl }}" class="flex items-center gap-2.5">
                 <span class="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-emerald-50 ring-1 ring-emerald-100 dark:bg-gray-700 dark:ring-gray-600">
                     <img src="{{ asset('images/official-logo.jpg') }}" alt="آمر تم" class="h-9 w-9 rounded-lg object-contain">
                 </span>
@@ -98,7 +118,7 @@
 
         {{-- Logout --}}
         <div class="border-t border-gray-200 p-4 dark:border-gray-700">
-            @if (auth('business')->check())
+            @if ($dashAuthed)
                 <button
                     type="button"
                     data-dashboard-logout
@@ -113,8 +133,8 @@
 
     {{-- ══ Main column (RTL: sidebar fixed right → pad right) ═══════════════════ --}}
     <div class="flex min-h-screen w-full flex-col lg:pr-72">
-        {{-- Topbar (Flowbite Admin Dashboard header) --}}
-        <header class="sticky top-0 z-30 border-b border-gray-200 bg-white/80 backdrop-blur-xl dark:border-gray-700 dark:bg-gray-800/80">
+        {{-- Topbar (Flowbite Admin Dashboard header) — أسفل الناف bar الموحّد --}}
+        <header class="sticky top-[72px] z-30 border-b border-gray-200 bg-white/80 backdrop-blur-xl dark:border-gray-700 dark:bg-gray-800/80">
             <div class="flex h-[72px] items-center justify-between gap-4 px-4 sm:px-6">
                 <div class="flex items-center gap-3">
                     <button
@@ -199,20 +219,13 @@
                             <p class="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{{ $dashPersona['label'] ?? '' }}</p>
                         </div>
                         <div class="py-2">
-                            <a href="{{ route('amrtm.dashboard.hub') }}" class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
+                            <a href="{{ $dashHomeUrl }}" class="flex items-center gap-2.5 px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-200 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
                                 <i class="ti ti-layout-dashboard text-gray-400 dark:text-gray-500"></i> لوحة التحكم
                             </a>
                         </div>
                         <div class="py-2">
-                            @if (auth('business')->check())
+                            @if ($dashAuthed)
                                 <form method="POST" action="{{ route('amrtm.logout') }}">
-                                    @csrf
-                                    <button type="submit" class="flex w-full cursor-pointer items-center gap-2.5 px-5 py-2.5 text-sm font-semibold text-red-600 transition-colors duration-200 hover:bg-red-50 dark:text-red-400 dark:hover:bg-gray-700">
-                                        <i class="ti ti-logout"></i> تسجيل الخروج
-                                    </button>
-                                </form>
-                            @elseif (auth('office')->check())
-                                <form method="POST" action="{{ route('amrtm.office.logout') }}">
                                     @csrf
                                     <button type="submit" class="flex w-full cursor-pointer items-center gap-2.5 px-5 py-2.5 text-sm font-semibold text-red-600 transition-colors duration-200 hover:bg-red-50 dark:text-red-400 dark:hover:bg-gray-700">
                                         <i class="ti ti-logout"></i> تسجيل الخروج

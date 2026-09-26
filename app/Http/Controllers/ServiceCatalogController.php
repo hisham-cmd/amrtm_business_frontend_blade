@@ -50,100 +50,156 @@ class ServiceCatalogController extends Controller
         ));
     }
 
-    /** صفحة تصنيف — GET /api/v1/catalog/{key} */
+    /**
+     * صفحة تصنيف — GET /api/v1/catalog/{key}
+     *
+     * قاعدة البيانات (عبر الـ API) هي المصدر الوحيد.
+     * أي فشل ⇒ 404 صريح. لا بيانات وهمية إطلاقاً.
+     */
     public function categoryPage(Request $request, string $key): View
     {
         $viaApi = BackendApi::get("/api/v1/catalog/{$key}");
-        if ($viaApi->isNotEmpty()) {
-            $cat = $viaApi->get('category');
-            $cat = is_array($cat) ? $cat : (array) $cat;
-            $raw = $viaApi->get('entities', []);
-            $raw = $raw instanceof \Illuminate\Support\Collection ? $raw->all() : (array) $raw;
 
-            $category = (object) [
-                'id'      => $cat['id'] ?? null,
-                'key'     => $cat['key'] ?? $key,
-                'name_ar' => $cat['name_ar'] ?? '',
-                'name_en' => $cat['name_en'] ?? '',
-                'icon'    => $cat['icon'] ?? null,
-                'color'   => $cat['color'] ?? '#006C35',
-                'bg'      => $cat['bg'] ?? null,
-            ];
-            $entities = collect($raw)->map(function ($e) {
-                $e = (array) $e;
-                $services = collect($e['services'] ?? []);
-
-                return (object) [
-                    'id'             => $e['id'] ?? null,
-                    'name_ar'        => $e['name_ar'] ?? '',
-                    'name_en'        => $e['name_en'] ?? '',
-                    'icon'           => $e['icon'] ?? null,
-                    'color'          => $e['color'] ?? '#006C35',
-                    'bg'             => $e['bg'] ?? null,
-                    'tag_ar'         => $e['tag_ar'] ?? null,
-                    'tag_en'         => $e['tag_en'] ?? null,
-                    'images'         => $e['images'] ?? null,
-                    'govServices'    => $services,
-                    'services'       => $services,
-                    'services_count' => $services->count(),
-                ];
-            });
-            $totalServices    = $entities->sum(fn($e) => $e->services->count());
-            $allServicesCount = $totalServices;
-
-            return view('update_service.catalog_category', compact('category', 'entities', 'totalServices', 'allServicesCount'));
+        if (BackendApi::isFailed($viaApi)) {
+            $this->logCatalogFailure('categoryPage', $key);
+            abort(404, 'التصنيف غير موجود');
         }
 
-        // Fallback بسيط بدون DB
-        $category = (object) ['id' => null, 'key' => $key, 'name_ar' => $key, 'name_en' => $key, 'color' => '#006C35', 'bg' => null];
-        $entities = collect();
-        $totalServices = 0;
-        $allServicesCount = 0;
+        $cat = (array) $viaApi->get('category', []);
+        $raw = $viaApi->get('entities', []);
+        $raw = $raw instanceof \Illuminate\Support\Collection ? $raw->all() : (array) $raw;
+
+        $category = (object) [
+            'id'             => $cat['id'] ?? null,
+            'key'            => $cat['key'] ?? $key,
+            'name_ar'        => $cat['name_ar'] ?? '',
+            'name_en'        => $cat['name_en'] ?? '',
+            'icon'           => $cat['icon'] ?? null,
+            'color'          => $cat['color'] ?? null,
+            'bg'             => $cat['bg'] ?? null,
+            'entities_count' => (int) ($cat['entities_count'] ?? count($raw)),
+        ];
+
+        $entities = collect($raw)->map(function ($e) {
+            $e       = (array) $e;
+            $services = collect($e['services'] ?? []);
+            $services = $services->map(fn($s) => $this->mapService((array) $s))->values();
+
+            return (object) [
+                'id'             => $e['id'] ?? null,
+                'name_ar'        => $e['name_ar'] ?? '',
+                'name_en'        => $e['name_en'] ?? '',
+                'icon'           => $e['icon'] ?? null,
+                'color'          => $e['color'] ?? null,
+                'bg'             => $e['bg'] ?? null,
+                'tag_ar'         => $e['tag_ar'] ?? null,
+                'tag_en'         => $e['tag_en'] ?? null,
+                'images'         => $e['images'] ?? null,
+                'image_url'      => $e['image_url'] ?? null,
+                'govServices'    => $services,
+                'services'       => $services,
+                'services_count' => $services->count(),
+            ];
+        })->values();
+
+        $totalServices    = $entities->sum(fn($e) => $e->services->count());
+        $allServicesCount = (int) ($cat['services_count'] ?? $totalServices);
 
         return view('update_service.catalog_category', compact('category', 'entities', 'totalServices', 'allServicesCount'));
     }
 
-    /** صفحة جهة — GET /api/v1/catalog/{key}/{id} */
+    /**
+     * صفحة جهة — GET /api/v1/catalog/{key}/{id}
+     *
+     * قاعدة البيانات (عبر الـ API) هي المصدر الوحيد.
+     * أي فشل ⇒ 404 صريح. لا بيانات وهمية إطلاقاً.
+     */
     public function entityPage(Request $request, string $key, int $entityId): View
     {
         $viaApi = BackendApi::get("/api/v1/catalog/{$key}/{$entityId}");
-        if ($viaApi->isNotEmpty() && $viaApi->get('entity')) {
-            $cat  = (array) $viaApi->get('category', []);
-            $ent  = (array) $viaApi->get('entity');
-            $svcs = $viaApi->get('services', []);
 
-            $category = (object) [
-                'id'      => $cat['id'] ?? null,
-                'key'     => $cat['key'] ?? $key,
-                'name_ar' => $cat['name_ar'] ?? '',
-                'name_en' => $cat['name_en'] ?? '',
-                'color'   => $cat['color'] ?? '#006C35',
-                'bg'      => $cat['bg'] ?? null,
-            ];
-            $entity = (object) [
-                'id'          => $ent['id'] ?? $entityId,
-                'name_ar'     => $ent['name_ar'] ?? '',
-                'name_en'     => $ent['name_en'] ?? '',
-                'icon'        => $ent['icon'] ?? null,
-                'color'       => $ent['color'] ?? '#006C35',
-                'bg'          => $ent['bg'] ?? null,
-                'tag_ar'      => $ent['tag_ar'] ?? null,
-                'tag_en'      => $ent['tag_en'] ?? null,
-                'images'      => $ent['images'] ?? null,
-                'govServices' => collect($svcs)->map(fn($s) => (object) (array) $s)->values(),
-            ];
-            $allServices = $entity->govServices;
-            $services    = $entity->govServices;
-
-            return view('update_service.catalog_entity', compact('category', 'entity', 'allServices', 'services'));
+        if (BackendApi::isFailed($viaApi) || ! $viaApi->get('entity')) {
+            $this->logCatalogFailure('entityPage', "{$key}/{$entityId}");
+            abort(404, 'الجهة غير موجودة');
         }
 
-        $category = (object) ['id' => null, 'key' => $key, 'name_ar' => 'الجهة', 'name_en' => 'Entity', 'color' => '#006C35', 'bg' => null];
-        $entity = (object) ['id' => $entityId, 'name_ar' => 'الجهة المطلوبة', 'name_en' => 'Requested Entity', 'govServices' => collect()];
-        $allServices = collect();
-        $services    = collect();
+        $cat = (array) $viaApi->get('category', []);
+        $ent = (array) $viaApi->get('entity');
+
+        $category = $cat ? (object) [
+            'id'      => $cat['id'] ?? null,
+            'key'     => $cat['key'] ?? $key,
+            'name_ar' => $cat['name_ar'] ?? '',
+            'name_en' => $cat['name_en'] ?? '',
+            'icon'    => $cat['icon'] ?? null,
+            'color'   => $cat['color'] ?? null,
+            'bg'      => $cat['bg'] ?? null,
+        ] : null;
+
+        $entity = (object) [
+            'id'         => $ent['id'] ?? $entityId,
+            'name_ar'    => $ent['name_ar'] ?? '',
+            'name_en'    => $ent['name_en'] ?? '',
+            'icon'       => $ent['icon'] ?? null,
+            'color'      => $ent['color'] ?? null,
+            'bg'         => $ent['bg'] ?? null,
+            'tag_ar'     => $ent['tag_ar'] ?? null,
+            'tag_en'     => $ent['tag_en'] ?? null,
+            'images'     => $ent['images'] ?? null,
+            'image_url'  => $ent['image_url'] ?? null,
+            'govServices' => collect($viaApi->get('services', []))
+                ->map(fn($s) => $this->mapService((array) $s))
+                ->values(),
+        ];
+
+        $allServices = $entity->govServices;
+        $services    = $entity->govServices;
 
         return view('update_service.catalog_entity', compact('category', 'entity', 'allServices', 'services'));
+    }
+
+    /**
+     * تحويل بيانات الخدمة القادمة من الـ API إلى كائن carries كل الحقول
+     * التي تحتاجها القوالب — أهمها `custom_fields` (الحقول المخصصة).
+     *
+     * @param  array<string, mixed>  $s
+     * @return object
+     */
+    private function mapService(array $s): object
+    {
+        $customFields = $s['custom_fields'] ?? [];
+        if (is_string($customFields)) {
+            $customFields = json_decode($customFields, true);
+        }
+        $customFields = is_array($customFields) ? array_values($customFields) : [];
+
+        return (object) [
+            'id'             => $s['id'] ?? null,
+            'entity_id'      => $s['entity_id'] ?? null,
+            'name_ar'        => $s['name_ar'] ?? '',
+            'name_en'        => $s['name_en'] ?? '',
+            'icon'           => $s['icon'] ?? null,
+            'price'          => $s['price'] ?? 0,
+            'duration'       => $s['duration'] ?? null,
+            'duration_min'   => $s['duration_min'] ?? null,
+            'duration_max'   => $s['duration_max'] ?? null,
+            'duration_unit'  => $s['duration_unit'] ?? null,
+            'description_ar' => $s['description_ar'] ?? null,
+            'description_en' => $s['description_en'] ?? null,
+            'custom_fields'  => $customFields,
+            'image_url'      => $s['image_url'] ?? null,
+        ];
+    }
+
+    /**
+     * تسجيل واضح عند فشل جلب بيانات الكتالوج — بدل إخفائها بمحتوى وهمي.
+     */
+    private function logCatalogFailure(string $method, string $target): void
+    {
+        \Illuminate\Support\Facades\Log::warning(
+            "ServiceCatalogController::{$method} failed for [{$target}] — "
+            . 'تعذّر جلب البيانات الحقيقية من قاعدة البيانات. تم رفض عرض أي محتوى بديل.'
+        );
     }
 
     /** دليل المستشارين — GET /api/v1/consultants */

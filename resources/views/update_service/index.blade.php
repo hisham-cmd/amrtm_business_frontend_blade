@@ -4284,16 +4284,26 @@
 @endsection
 
 @push('scripts')
+    @php
+        /*
+         | مصدر الحقيقة = الخادم (AppServiceProvider عبر /api/v1/auth/me).
+         | الكود القديم كان يعيد بناء الكائن من auth('business') ويكتب
+         | window.AMRTM_USER = null → يختفي الحساب المسجّل من الناف بار
+         | رغم أن الخادم رسم أزرار الدخول بشكل صحيح.
+         */
+        $__navUser = $currentAuthUser ?? $frontUser ?? null;
+        $__navUserArray = $__navUser === null
+            ? null
+            : (method_exists($__navUser, 'toArray') ? $__navUser->toArray() : (array) $__navUser);
+        $__navAuthed = (bool) ($frontAuthed ?? false) || $__navUser !== null;
+    @endphp
     <script>
-        window.AMRTM_USER = {!! auth('business')->check() ? json_encode([
-        'id' => auth('business')->id(),
-        'name' => auth('business')->user()->name,
-        'email' => auth('business')->user()->email,
-        'phone' => auth('business')->user()->phone ?? '',
-        'role' => auth('business')->user()->role,
-        'balance' => 0,
-    ]) : 'null' !!};
-        window.AMRTM_NAV_AUTHED = {!! auth('business')->check() || auth('office')->check() ? 'true' : 'false' !!};
+        window.AMRTM_USER = @json($__navUserArray);
+        window.AMRTM_NAV_AUTHED = @json($__navAuthed);
+        if (window.AMRTM_USER === null && window.__amrtmUserPinned === true) {
+            // الخادم أكّد الجلسة — لا نسمح للصفحة بتصفيرها
+            window.AMRTM_NAV_AUTHED = true;
+        }
         window.AMRTM_CSRF = '{{ csrf_token() }}';
         window.AMRTM_API_BASE = '{{ url("/api") }}';
         window.AMRTM_ROUTES = {
@@ -4902,39 +4912,47 @@
         })();
 
         function updateNavAuth() {
-            const u = typeof Auth !== "undefined" ? Auth.getUser() : null;
+            const u = typeof Auth !== "undefined" ? Auth.getUser() : window.AMRTM_USER || null;
+            const serverAuthed =
+                window.AMRTM_NAV_AUTHED === true ||
+                window.AMRTM_NAV_AUTHED === "true" ||
+                window.AMRTM_NAV_AUTHED === 1 ||
+                window.AMRTM_NAV_AUTHED === "1";
+            const guestBox = document.getElementById("nb-guest");
+            const authBox = document.getElementById("nb-auth");
+
             if (u) {
-                document.getElementById("nb-guest").style.display = "none";
-                const a = document.getElementById("nb-auth");
-                a.style.display = "flex";
-                document.getElementById("nb-un").textContent = u.name.split(" ")[0];
+                guestBox.style.display = "none";
+                authBox.style.display = "flex";
+                const shortName = (u.name || "مستخدم").split(" ")[0];
+                document.getElementById("nb-un").textContent = shortName;
                 const av = document.getElementById("nb-av");
-                av.src =
+                const avatar =
                     u.avatar_url ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=1A237E&color=fff&size=64`;
-                av.onerror = () =>
-                    (av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=1A237E&color=fff&size=64`);
+                    u.profile_photo ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || "مستخدم")}&background=006C35&color=fff&size=64`;
+                av.src = avatar;
+                av.onerror = () => {
+                    av.onerror = null;
+                    av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || "مستخدم")}&background=006C35&color=fff&size=64`;
+                };
                 // Route to correct dashboard
-                const dashUrl =
-                    u.role === "admin"
-                        ? (AMRTM_ROUTES && AMRTM_ROUTES.adminDashboard) ||
-                        "/admin"
-                        : (AMRTM_ROUTES && AMRTM_ROUTES.userDashboard) ||
-                        "/dashboard";
+                const isAdmin = u.role === "admin" || u.role === "supervisor" || u.is_admin === true;
+                const dashUrl = isAdmin
+                    ? (window.AMRTM_ROUTES && window.AMRTM_ROUTES.adminDashboard) || "/admin"
+                    : (window.AMRTM_ROUTES && window.AMRTM_ROUTES.userDashboard) || "/dashboard";
                 document.getElementById("nb-dash-lnk").href = dashUrl;
-                document.getElementById("nb-user-chip").onclick = () =>
-                    (location.href = dashUrl);
-                document.getElementById("nl-da").textContent =
-                    u.role === "admin"
-                        ? lang === "ar"
-                            ? "لوحة التحكم"
-                            : "Dashboard"
-                        : lang === "ar"
-                            ? "حسابي"
-                            : "My Account";
-            } else if (window.AMRTM_NAV_AUTHED !== true) {
-                document.getElementById("nb-guest").style.display = "flex";
-                document.getElementById("nb-auth").style.display = "none";
+                document.getElementById("nb-user-chip").onclick = () => (location.href = dashUrl);
+                document.getElementById("nl-da").textContent = isAdmin
+                    ? lang === "ar" ? "لوحة التحكم" : "Dashboard"
+                    : lang === "ar" ? "حسابي" : "My Account";
+            } else if (serverAuthed) {
+                // الخادم أكّد الدخول — لا نمسح ما رسمه، فقط نضمن العرض
+                guestBox.style.display = "none";
+                authBox.style.display = "flex";
+            } else {
+                guestBox.style.display = "flex";
+                authBox.style.display = "none";
             }
         }
         function searchCards() {

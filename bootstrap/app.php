@@ -23,7 +23,29 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
-        // المصادقة عبر الـ API المنفصل — لا نحتاج CSRF محلي لموارد الدخول/التسجيل
+
+        /*
+         | وكيل /api/* يحتاج جلسة Laravel لقراءة amrtm_api_token.
+         | بدونها مجموعة api middleware لا تشغّل StartSession، فيصل الطلب
+         | للباك اند بلا ترويسة Authorization فيرجع 401 لكل نداء.
+         |
+         | ملاحظة جوهرية: StartSession وحده لا يكفي — يجب أن يسبقه EncryptCookies.
+         | مجموعة web تُشفّر كوكي الجلسة عند الإخراج، فلو دخل الطلب إلى /api/*
+         | دون فك التشفير لكان StartSession سيتعامل مع القيمة المشفَّرة كـ session id
+         | فلا يطابق أي ملف جلسة ← جلسة فارغة ← لا توكن ← 401.
+         |
+         | لذلك نضيف نفس سلسلة الجلسة الموجودة في مجموعة web:
+         | EncryptCookies → AddQueuedCookiesToResponse → StartSession
+         | → ShareErrorsFromSession (Validation of CSRF مستثنى في الأسفل).
+         */
+        $middleware->api(prepend: [
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+        ]);
+
+        // مسارات API المفتوحة: لا تتطلب CSRF
         $middleware->validateCsrfTokens(except: [
             'login',
             'register',
@@ -32,6 +54,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'contracts',
             'provider-account',
             'office/profile/update',
+            'api/*',
+            '__diag',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

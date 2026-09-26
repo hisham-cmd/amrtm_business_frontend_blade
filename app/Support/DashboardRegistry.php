@@ -77,8 +77,9 @@ class DashboardRegistry
             'pool_requests' => [
                 'ar' => 'شبكة المكاتب', 'en' => 'Offices Network', 'icon' => 'ti-hierarchy-2',
                 'group' => 'الطلبات',
-                'paths' => ['office' => '/office/dashboard#pool-reqs'],
-                'path' => '/office/dashboard#pool-reqs',
+                // الأدمن يخدم نفس القائمة عبر /admin/requests (لا يملك واجهة المكاتب)
+                'paths' => ['office' => '/office/dashboard#pool-reqs', 'admin' => '/admin/requests'],
+                'path' => '/admin/requests',
             ],
             'consultations' => [
                 'ar' => 'الاستشارات', 'en' => 'Consultations', 'icon' => 'ti-messages',

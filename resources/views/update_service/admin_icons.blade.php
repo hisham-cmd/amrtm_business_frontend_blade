@@ -4,7 +4,7 @@
 
 @section('dashboard-content')
 @php
-    $user = auth('business')->user();
+    $user = $currentAuthUser ?? $frontUser ?? auth('business')->user();
     $persona = [
         'key' => $user->role ?? 'admin',
         'label' => ($user->role ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',

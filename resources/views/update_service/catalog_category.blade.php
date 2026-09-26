@@ -255,8 +255,10 @@
                         $svcs = $entity->govServices;
                         $svcCount = $svcs->count();
                         $eColor = $entity->color ?? $catColor;
-                        $hasLogo = !empty($entity->images);
                         $eTag = $entity->tag_ar ?? '';
+                        // الصورة لا تُعرض إلا إذا كانت موجودة فعلاً في قاعدة البيانات
+                        // (رابط حقيقي من الـ API) — لا صورة بديلة ولا مسار مُختلق.
+                        $eImage = !empty($entity->image_url) ? $entity->image_url : null;
                     @endphp
                     <a href="{{ route('amrtm.catalog.entity', [$category->key, $entity->id]) }}" class="ec cui-fade"
                         style="--ecc: {{ $eColor }};" data-name-ar="{{ strtolower($entity->name_ar) }}"
@@ -268,9 +270,9 @@
                         <div class="ec-body">
                             <div class="ec-ico"
                                 style="background:{{ $entity->bg ?? $catBg }};border:1.5px solid {{ $eColor }}33;">
-                                @if($hasLogo)
-                                    <img src="{{ asset('images/uploads/' . $entity->images) }}" alt="{{ $entity->name_ar }}"
-                                        class="entity-logo"
+                                @if($eImage)
+                                    <img src="{{ $eImage }}" alt="{{ $entity->name_ar }}"
+                                        class="entity-logo" loading="lazy"
                                         onerror="this.style.display='none';this.nextElementSibling.classList.remove('hidden');">
                                     <i class="ti {{ $entity->icon ?? 'ti-building' }} ec-ico-fallback hidden"
                                         style="color:{{ $eColor }};"></i>

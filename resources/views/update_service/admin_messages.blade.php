@@ -1,10 +1,10 @@
-@extends('layouts.dashboard')
+﻿@extends('layouts.dashboard')
 
 @section('title', 'التواصل والمخالفات | آمر تم')
 
 @section('dashboard-content')
 @php
-    $user = auth('business')->user();
+    $user = $currentAuthUser ?? $frontUser ?? auth('business')->user();
     $persona = [
         'key' => $user->role ?? 'admin',
         'label' => ($user->role ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',
@@ -421,10 +421,9 @@
                     return;
                 }
                 const adminAttUrl = function (m, path) {
-                    return '{{ route('api.v1.admin.requests.messages.attachment', ['requestId' => '__RID__', 'messageId' => '__MID__', 'file' => '__FILE__']) }}'
-                        .replace('__RID__', id)
-                        .replace('__MID__', m.id)
-                        .replace('__FILE__', encodeURIComponent(path || ''));
+                    // مسار مرفقات رسائل الطلبات في الباك اند (يُمرَّر عبر وكيل /api)
+                    return '{{ url('/api/v1/admin/requests') }}/' + id + '/messages/' + m.id + '/attachment'
+                        + (path ? '?file=' + encodeURIComponent(path) : '');
                 };
                 chat.innerHTML = d.messages.map(m => {
                     const who = m.sender_type === 'office' ? 'المكتب' : 'العميل';

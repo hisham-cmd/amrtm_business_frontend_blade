@@ -2615,7 +2615,13 @@
 
     <script>
         const CSRF = '{{ csrf_token() }}';
-        const API = '{{ url('/office/api') }}';
+        // مسار الـ API الموحّد لواجهة المكاتب.
+        // كان '/office/api' — مسار غير موجود في هذه الواجهة، فكان كل نداء
+        // يرجع 404 (stats / notifications / services / contracts).
+        // وكيل /api/{path} في routes/api.php يمرّر الطلب للباك اند مع
+        // توكن الجلسة (amrtm_api_token) في ترويسة Authorization،
+        // فمسارات اللوحة الحقيقية هي /api/v1/office/*
+        const API = @json(url('/api/v1/office'));
         const IS_SUPPORTING_OFFICE = {{ $office->isSupportingOffice() ? 'true' : 'false' }};
         const OFFICE_SPECIALTIES = @json($specialties->map(fn($s) => ['id' => $s->id, 'name_ar' => $s->name_ar]));
         const OFFICE_SELECTED_IDS = @json($selectedIds);
@@ -2639,11 +2645,15 @@
                 return r.json();
             },
             unreadCount: async function () {
-                const r = await fetch(this._base + '/unread-count', {
+                // الباك اند لا يوفّر /office/notifications/unread-count؛
+                // المصدر الصحيح للوحة المكاتب هو /office/messages/unread.
+                const r = await fetch(API + '/messages/unread', {
                     headers: this._h(),
                     credentials: 'same-origin'
                 });
-                return r.json();
+                const j = await r.json().catch(() => ({}));
+                const v = (j && j.value) || j || {};
+                return { count: Number(v.total ?? (Array.isArray(v.requests) ? v.requests.length : 0) ?? 0) };
             },
             markRead: async function (id) {
                 await fetch(this._base + '/' + id + '/read', {
@@ -2969,10 +2979,9 @@
         }
 
         function attUrl(m, path) {
-            return '{{ route('amrtm.office.api.message.attachment', ['requestId' => '__RID__', 'messageId' => '__MID__', 'file' => '__FILE__']) }}'
-                .replace('__RID__', m.request_id || curReqId)
-                .replace('__MID__', m.id)
-                .replace('__FILE__', encodeURIComponent(path || ''));
+            // مسار مرفقات رسائل الطلبات في الباك اند (يُمرَّر عبر وكيل /api)
+            return '{{ url('/api/v1/office/requests') }}/' + (m.request_id || curReqId)
+                + '/messages/' + m.id + '/attachments/' + encodeURIComponent(path || '');
         }
 
         function getAttFiles() {

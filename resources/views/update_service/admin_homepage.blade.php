@@ -1,10 +1,10 @@
-@extends('layouts.dashboard')
+﻿@extends('layouts.dashboard')
 
 @section('title', 'إدارة الواجهة والمحتوى | آمر تم')
 
 @section('dashboard-content')
 @php
-    $user = auth('business')->user();
+    $user = $currentAuthUser ?? $frontUser ?? auth('business')->user();
     $persona = [
         'key' => $user->role ?? 'admin',
         'label' => ($user->role ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',
@@ -169,11 +169,19 @@
   </div>
 
 <script>
-const API_SETTINGS     = '{{ route('amrtm.admin.api.homepage.settings') }}';
-const API_SETTINGS_SAVE= '{{ route('amrtm.admin.api.homepage.settings.save') }}';
-const API_SLIDES       = '{{ route('amrtm.admin.api.homepage.slides') }}';
-const API_SLIDES_STORE = '{{ route('amrtm.admin.api.homepage.slides.store') }}';
-const API_SLIDES_REORDER = '{{ route('amrtm.admin.api.homepage.slides.reorder') }}';
+/*
+ | كل نداءات لوحة الواجهة تمرّ عبر وكيل /api في الواجهة (routes/api.php)،
+ | وهو يمرّرها للباك اند على /api/v1/<path> مع توكن الجلسة.
+ | لذلك المسار هنا يجب أن يكون /api/admin/... ليصير /api/v1/admin/... .
+ |
+ | نستخدم url() لا route() لأن أسماء route() الصناعية تشير لمسارات
+ | /admin/api/* وهي خارج نطاق الوكيل (الوكيل يلتقط /api/* فقط).
+ */
+const API_SETTINGS     = '{{ url('/api/admin/homepage/settings') }}';
+const API_SETTINGS_SAVE= '{{ url('/api/admin/homepage/settings') }}';
+const API_SLIDES       = '{{ url('/api/admin/homepage/slides') }}';
+const API_SLIDES_STORE = '{{ url('/api/admin/homepage/slides') }}';
+const API_SLIDES_REORDER = '{{ url('/api/admin/homepage/slides/reorder') }}';
 const CSRF             = document.querySelector('meta[name="csrf-token"]').content;
 
 let slides = [];
@@ -459,7 +467,8 @@ async function saveSlideForm() {
     method = 'PUT';
   } else {
     if (!image) { toast('يرجى اختيار صورة للسلايد', 'err'); return; }
-    url = API_SLIDES;
+    // مسار الإنشاء منفصل عن مسار القائمة (القائمة GET فقط)
+    url = API_SLIDES_STORE;
     method = 'POST';
   }
 

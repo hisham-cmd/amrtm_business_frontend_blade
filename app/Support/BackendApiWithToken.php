@@ -28,14 +28,21 @@ class BackendApiWithToken
             if (!$resp->successful()) {
                 Log::warning("BackendApiWithToken {$method} {$path} => HTTP {$resp->status()}");
 
-                return collect(['error' => ['message' => 'فشل الاتصال بالباك اند.']]);
+                return collect([
+                    'error' => ['message' => 'فشل الاتصال بالباك اند.'],
+                    // إشارة صريحة: التوكن غير صالح (بخلاف أخطاء الشبكة/الخادم)
+                    'unauthorized' => in_array($resp->status(), [401, 419], true),
+                ]);
             }
 
             return collect($resp->json());
         } catch (\Throwable $e) {
             Log::warning("BackendApiWithToken {$method} {$path} error: " . $e->getMessage());
 
-            return collect(['error' => ['message' => $e->getMessage()]]);
+            return collect([
+                'error' => ['message' => $e->getMessage()],
+                'unauthorized' => false,
+            ]);
         }
     }
 }

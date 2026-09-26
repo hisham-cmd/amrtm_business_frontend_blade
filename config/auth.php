@@ -28,9 +28,9 @@ return [
         ],
 
         /*
-        | حكام وهمية (لا DB): القوالب القديمة تدعو auth('business') و auth('office')
-        | في النسخة النظيفة لا يوجد مستخدمون محليون — تعيد null دائماً.
-        | المصادقة الحقيقية كلها في الباك اند عبر BackendApi.
+        | حارسا business / office: الحالة تُحقن من الـ API عبر
+        | AppServiceProvider (setUser) — لا تسجيل دخول محلي ولا Models وهمية.
+        | guard=business للعميل/الأدمن، و guard=office لمستخدمي المكاتب.
         */
         'business' => [
             'driver' => 'session',
@@ -39,7 +39,7 @@ return [
 
         'office' => [
             'driver' => 'session',
-            'provider' => 'users',
+            'provider' => 'office_users',
         ],
     ],
 
@@ -47,6 +47,17 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
+        ],
+
+        /*
+        | مزوّد مستخدمي المكاتب: النموذج الحقيقي App\Models\Business\OfficeUser
+        | على اتصال business. بدونه لا يمكن لـ setUser() قبول كائن المكتب،
+        | فيبقى auth('office')->check() === false وتختفي كل خصائص اللوحة.
+        */
+        'office_users' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Business\OfficeUser::class,
+            'connection' => 'business',
         ],
     ],
 

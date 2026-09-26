@@ -4,13 +4,15 @@
 
 @section('dashboard-content')
 @php
-    $adminUser = auth('business')->user();
+    // مصدر واحد للحقيقة: AppServiceProvider → /api/v1/auth/me
+    $adminUser = $currentAuthUser ?? $frontUser ?? null;
     $frontTypes = [\App\Support\DashboardRegistry::TYPE_ADMIN];
+    $adminRole = $adminUser->role ?? 'supervisor';
     $persona = [
-        'key' => $adminUser->role ?? 'admin',
-        'label' => ($adminUser->role ?? '') === 'supervisor' ? 'مشرف' : 'مدير النظام',
+        'key' => $adminRole,
+        'label' => $adminRole === 'supervisor' ? 'مشرف' : 'مدير النظام',
         'types' => $frontTypes,
-        'name' => $adminUser->name ?? '',
+        'name' => ($adminUser->name ?? '') !== '' ? $adminUser->name : 'مشرف النظام',
     ];
     $pageTitle = 'لوحة التحكم — ' . $persona['label'];
     // القائمة والعدادات من الـ Controller (مهيأة من الـ API) — لا استعلام DB محلي
@@ -24,9 +26,10 @@
         placeholder="بحث في الطلبات..." class="h-9! w-[220px]! rounded-lg! border! border-emerald-900/10! bg-slate-50! pe-9! ps-3! text-[13px]! text-slate-900! placeholder:text-slate-400! focus:border-emerald-600! focus:ring-0!" /></div>
         <a href="{{ route('amrtm.admin.messages') }}" aria-label="المحادثات" title="المحادثات" class="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-900/10 bg-transparent text-slate-700 transition hover:bg-emerald-600/10 hover:text-emerald-600"><i class="ti ti-messages"></i></a>
         <div class="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-emerald-900/10 bg-transparent text-slate-700 transition hover:bg-emerald-600/10 hover:text-emerald-600" onclick="loadPageData(window.AMRTM_PAGE || 'overview')"><i class="ti ti-refresh"></i></div>
+        {{-- مبدّل اللغة: معرّفات مختلفة عن الناف bar الموحّد لتفادي تكرار la/le --}}
         <div class="flex gap-0.5 rounded-lg border border-emerald-900/10 bg-slate-50 p-0.5">
-            <div class="lt on" id="la" onclick="setLang('ar')">AR</div>
-            <div class="lt" id="le" onclick="setLang('en')">EN</div>
+            <div class="lt on" id="dash-la" onclick="window.AMRTM_SET_LANG ? window.AMRTM_SET_LANG('ar') : (typeof setLang==='function' &amp;&amp; setLang('ar'))">AR</div>
+            <div class="lt" id="dash-le" onclick="window.AMRTM_SET_LANG ? window.AMRTM_SET_LANG('en') : (typeof setLang==='function' &amp;&amp; setLang('en'))">EN</div>
         </div>
 @endpush
 

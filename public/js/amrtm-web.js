@@ -81,6 +81,22 @@ const Auth = {
         return u && (u.role === 'admin' || u.role === 'supervisor');
     },
 
+    /**
+     * نوع الحساب: 'office' لمستخدمي المكاتب، 'business' للعميل/الأدمن.
+     * المسارات في الباك اند مقسومة بـ auth.api:business و auth.office،
+     * فاستدعاء مسار business بتوكن office يعيد 401 دائماً.
+     */
+    userType() {
+        const u = this.getUser();
+        if (!u) return 'guest';
+        if (u.type === 'office' || u.account_type === 'office') return 'office';
+        return 'business';
+    },
+
+    isOffice() {
+        return this.userType() === 'office';
+    },
+
     async logout() {
         const routes  = window.AMRTM_ROUTES || {};
         const csrf    = window.AMRTM_CSRF || '';
@@ -259,12 +275,39 @@ updateEntity(id, data) {
 
 /* ══════════════════════════════════════
    NOTIFICATIONS
-══════════════════════════════════════ */
+   ══════════════════════════════════════
+   مسارات الإشعارات تختلف بين نوعَي الحساب في الباك اند:
+     business → /api/v1/notifications*        (middleware: auth.api:business)
+     office   → /api/v1/office/notifications  (middleware: auth.office)
+   الباك اند لا يوفّر unread-count للوحة المكاتب، فالمصدر هناك
+   هو /office/messages/unread الذي يرجع { total, requests[] }.
+   بدون هذا التفرقة كان حساب المكتب يتلقى 401 كل 30 ثانية. */
 const Notifications = {
-    async getAll(page=1)     { return API.get('/notifications?page=' + page); },
-    async unreadCount()      { return API.get('/notifications/unread-count'); },
-    async markRead(id)       { return API.post(`/notifications/${id}/read`); },
-    async markAllRead()      { return API.post('/notifications/read-all'); },
+    isOffice() {
+        return typeof Auth !== 'undefined' && Auth.isOffice();
+    },
+    async getAll(page = 1) {
+        if (this.isOffice()) return API.get('/office/notifications?page=' + page);
+        return API.get('/notifications?page=' + page);
+    },
+    /** عدد غير المقروء — شكل الرد موحّد { count } لكلا النوعين */
+    async unreadCount() {
+        if (this.isOffice()) {
+            const res = await API.get('/office/messages/unread');
+            const v = (res && res.value) || res || {};
+            return { count: Number(v.total ?? (Array.isArray(v.requests) ? v.requests.length : 0) ?? 0) };
+        }
+        const res = await API.get('/notifications/unread-count');
+        return { count: Number((res && res.value && res.value.count) ?? res?.count ?? 0) };
+    },
+    async markRead(id) {
+        if (this.isOffice()) return null;  // غير متوفر للوحة المكاتب
+        return API.post('/notifications/' + id + '/read');
+    },
+    async markAllRead() {
+        if (this.isOffice()) return null;  // غير متوفر للوحة المكاتب
+        return API.post('/notifications/read-all');
+    },
 };
 
 /* ══════════════════════════════════════
@@ -279,22 +322,28 @@ const Notifications = {
     async function poll() {
         try {
             const res = await Notifications.unreadCount();
-            if (res && typeof res.count !== 'undefined') {
-                // Update all notification badge elements on the page
-                document.querySelectorAll('[data-notif-badge]').forEach(el => {
-                    el.textContent = res.count;
-                    el.style.display = res.count > 0 ? '' : 'none';
-                // Also update legacy IDs used in dashboards
-                const b1 = document.getElementById('notif-badge');
-                const b2 = document.getElementById('notif-count');
-                if (b1) b1.textContent = res.count;
-                if (b2) b2.textContent = res.count;
+            const count = Number(res?.count ?? 0);
+            // Update all notification badge elements on the page
+            document.querySelectorAll('[data-notif-badge]').forEach(el => {
+                el.textContent = count;
+                el.style.display = count > 0 ? '' : 'none';
+            });
+            // Also update legacy IDs used in dashboards
+            const b1 = document.getElementById('notif-badge');
+            const b2 = document.getElementById('notif-count');
+            if (b1) b1.textContent = count;
+            if (b2) b2.textContent = count;
 
-                // Dispatch custom event so dashboards can react
-                window.dispatchEvent(new CustomEvent('amrtm:notif-count', { detail: res.count }));
-                });
+            // Dispatch custom event so dashboards can react
+            window.dispatchEvent(new CustomEvent('amrtm:notif-count', { detail: count }));
+        } catch (err) {
+            // 401/403 تعني توكن غير صالح أو صلاحية نوع — نوقف الاستطلاع بدل تكرار الخطأ
+            const st = err && err.status;
+            if (st === 401 || st === 403) {
+                clearTimeout(_timer);
+                return;
             }
-        } catch (_) {}
+        }
         _timer = setTimeout(poll, 30000);
     }
 

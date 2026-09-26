@@ -16,9 +16,24 @@
     @stack('styles')
 </head>
 <body class="{{ $bodyClass }}">
+    @php
+        /*
+         | حقن المستخدم الحالي (من الجلسة عبر الـ API) — تعتمد عليه
+         | Auth.isLoggedIn() في السكربتات و updateNavAuth() في الناف بار.
+         | محتوى @section يُصيَّر بعد هذا السكربت، فأي قالب فرعي كان يعيد
+         | كتابة AMRTM_USER = null يمحو حالة الدخول — لذلك نثبّت
+         | __amrtmUserPinned هنا ونمنع التصفير في الصفحة الرئيسية.
+         */
+        $__u = $currentAuthUser ?? $frontUser ?? null;
+        $__uArray = $__u === null
+            ? null
+            : (method_exists($__u, 'toArray') ? $__u->toArray() : (array) $__u);
+        $__authed = (bool) ($frontAuthed ?? false) || $__u !== null;
+    @endphp
     <script>
-        // حقن المستخدم الحالي (من الجلسة عبر الـ API) — يعتمد عليه Auth.isLoggedIn() في السكربتات
-        window.AMRTM_USER = @json($frontUser ?? null);
+        window.__amrtmUserPinned = @json($__authed);
+        window.AMRTM_USER = @json($__uArray);
+        window.AMRTM_NAV_AUTHED = @json($__authed);
     </script>
     @yield('content')
 

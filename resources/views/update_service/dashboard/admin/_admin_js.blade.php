@@ -2051,7 +2051,7 @@ let _catData = [],
         /* ── Specialty linking (bs_specialty_services) ── */
         async function loadServiceSpecialtyOptions() {
             try {
-                const res = await fetch('/office/specialties', {
+                const res = await fetch(`${(window.AMRTM_API_BASE || '/api').replace(/\/$/, '')}/admin/specialties`, {
                     headers: { 'Accept': 'application/json' },
                     credentials: 'same-origin',
                 });
@@ -5309,7 +5309,7 @@ function serviceOptionsText(options) {
 
             try {
 
-                let url = '/amrtm/office/specialties';
+                let url = `${(window.AMRTM_API_BASE || '/api').replace(/\/$/, '')}/admin/specialties`;
 
                 if (type) {
                     url += '?office_type=' + encodeURIComponent(type);
@@ -5572,7 +5572,7 @@ function serviceOptionsText(options) {
             try {
 
                 const response = await fetch(
-                    '/amrtm/office/specialties', {
+                    `${(window.AMRTM_API_BASE || '/api').replace(/\/$/, '')}/admin/specialties`, {
                         method: 'POST',
 
                         headers: {
@@ -5657,7 +5657,7 @@ function serviceOptionsText(options) {
             try {
 
                 const response = await fetch(
-                    `/amrtm/office/specialties/${id}`, {
+                    `${(window.AMRTM_API_BASE || '/api').replace(/\/$/, '')}/admin/specialties/${id}`, {
                         method: 'DELETE',
 
                         headers: {
