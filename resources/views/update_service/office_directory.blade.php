@@ -571,7 +571,7 @@
             const a = document.getElementById('nb-auth'); a.style.display = 'flex';
             document.getElementById('nb-un').textContent = u.name.split(' ')[0];
             const av = document.getElementById('nb-av');
-            if (av) av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=006C35&color=fff&size=64`;
+            if (typeof window.AMRTM_APPLY_NAV_AVATAR === 'function') window.AMRTM_APPLY_NAV_AVATAR(u); else if (av) av.style.display = 'none';
             const dashUrl = u.role === 'admin'
                 ? (window.AMRTM_ROUTES.adminDashboard || '/amrtm/admin')
                 : (window.AMRTM_ROUTES.userDashboard || '/amrtm/dashboard');

@@ -55,8 +55,12 @@ class BackendApi
 
     /**
      * تنفيذ الطلب وإرجاع البيانات كما هي من الـ API.
-     * عند الفشل تُرجع مجموعة فارغة + رسالة الخطأ في سجل اللوج،
-     * بلا أي بيانات بديلة أو افتراضية.
+     *
+     * عند الفشل تُرجع مغلف خطأ موحّد بنفس شكل استجابة الـ API:
+     *   { isSuccess:false, value:null, error:{ message, code }, statusCode }
+     * حتى تتمكن الواجهة من تمييز:
+     *   - بيانات دخول خاطئة  (رسالة الباك اند الأصلية)
+     *   - الباك اند متوقف / الشبكة  (رسالة تشغيلية واضحة)
      */
     private static function request(string $method, string $path, array $payload): \Illuminate\Support\Collection
     {
@@ -70,17 +74,84 @@ class BackendApi
                 : $request->get($url, $payload);
 
             if (! $resp->successful()) {
-                $error = $resp->json('error.message') ?? ('HTTP ' . $resp->status());
-                Log::warning("BackendApi {$method} {$path} => HTTP {$resp->status()}: {$error}");
+                $status = $resp->status();
+                $code   = $resp->json('error.code');
+                $msg    = $resp->json('error.message');
 
-                return collect();
+                Log::warning("BackendApi {$method} {$path} => HTTP {$status}: " . ($msg ?? 'no message'));
+
+                // 4xx = رفض بيانات (رسالة الباك اند) — 5xx = خلل خادم
+                if ($status >= 400 && $status < 500) {
+                    return self::errorResponse(
+                        $status,
+                        $msg ?: 'بيانات الدخول غير صحيحة.',
+                        $code ?: 'INVALID_REQUEST'
+                    );
+                }
+
+                return self::errorResponse(
+                    $status,
+                    $msg ?: 'الباك اند واجه خطأ داخلياً (' . $status . '). أعد المحاولة بعد قليل.',
+                    $code ?: 'BACKEND_ERROR'
+                );
             }
 
             return collect($resp->json());
+        } catch (\Illuminate\Http\Client\ConnectionException $e) {
+            // الباك اند غير مشغّل / المنفذ مغلق / لا شبكة
+            Log::warning("BackendApi {$method} {$path} connection error: " . $e->getMessage());
+
+            return self::errorResponse(
+                0,
+                'تعذّر الاتصال بسيرفر الباك اند على ' . self::baseUrl() . '. تأكد أن الخدمة تعمل ثم أعد المحاولة.',
+                'BACKEND_UNREACHABLE'
+            );
+        } catch (\Illuminate\Http\Client\RequestException $e) {
+            Log::warning("BackendApi {$method} {$path} timeout/transport error: " . $e->getMessage());
+
+            return self::errorResponse(
+                0,
+                'انتهت مهلة الاتصال بالباك اند بعد 10 ثوانٍ. تحقق من الشبكة ثم أعد المحاولة.',
+                'BACKEND_TIMEOUT'
+            );
         } catch (\Throwable $e) {
             Log::warning("BackendApi {$method} {$path} error: " . $e->getMessage());
 
-            return collect();
+            return self::errorResponse(
+                0,
+                'خطأ غير متوقع أثناء الاتصال بالباك اند: ' . $e->getMessage(),
+                'UNEXPECTED'
+            );
         }
+    }
+
+    /**
+     * مغلف خطأ موحّد بنفس شكل استجابة الـ API.
+     * statusCode = 0 تعني «الطلب لم يصل الباك اند أصلاً».
+     */
+    public static function errorResponse(int $status, string $message, ?string $code = null): \Illuminate\Support\Collection
+    {
+        return collect([
+            'isSuccess'  => false,
+            'value'      => null,
+            'error'      => ['message' => $message, 'code' => $code],
+            'statusCode' => $status,
+        ]);
+    }
+
+    /**
+     * هل الفشل بنية تحتية (شبكة/باك اند متوقف) لا رفض بيانات؟
+     *用它 لعرض رسالة تشغيلية مختلفة عن "كلمة المرور غير صحيحة".
+     */
+    public static function isInfraError(\Illuminate\Support\Collection $response): bool
+    {
+        $code = $response->get('error')['code'] ?? null;
+        $status = (int) $response->get('statusCode');
+
+        if (in_array($code, ['BACKEND_UNREACHABLE', 'BACKEND_TIMEOUT', 'BACKEND_ERROR', 'UNEXPECTED'], true)) {
+            return true;
+        }
+
+        return $status === 0 || $status >= 500;
     }
 }

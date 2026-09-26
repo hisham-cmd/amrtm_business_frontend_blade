@@ -28,6 +28,9 @@
     $officeLogoUrl = $isOffice && $user && !empty($user->office) && !empty($user->office->logo_url)
         ? $user->office->logo_url
         : null;
+    // صورة المستخدم: من قاعدة البيانات فقط (avatar_url) — لا خدمة صور رمزية خارجية.
+    $userAvatarUrl = $user && !empty($user->avatar_url) ? $user->avatar_url : null;
+    $userInitials  = $user && !empty($user->initials) ? $user->initials : mb_substr($userFirst, 0, 1, 'UTF-8');
 @endphp
 
 <nav class="sticky top-0 inset-x-0 z-[999] w-full border-b border-slate-200 bg-white shadow-sm">
@@ -81,7 +84,8 @@
                    class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-gray-700 no-underline transition-all duration-200 hover:bg-gray-50 sm:px-4">
                     <i class="fa fa-right-to-bracket text-sm"></i><span id="nl-li" class="hidden sm:inline">دخول</span>
                 </a>
-                <a href="{{ route('amrtm.register') }}" id="nb-re"
+                {{-- زر «تسجيل» يفتح واجهة الدخول نفسها على تبويب «حساب جديد» --}}
+                <a href="{{ route('amrtm.login', ['mode' => 'register']) }}" id="nb-re"
                    class="inline-flex items-center gap-2 rounded-lg bg-[#006C35] px-3 py-2 text-sm font-semibold text-white no-underline transition-all duration-200 hover:bg-[#00843D] sm:px-4">
                     <i class="fa fa-user-plus text-sm"></i><span id="nl-re" class="hidden sm:inline">تسجيل</span>
                 </a>
@@ -102,9 +106,17 @@
                     </a>
                     <div id="nb-user-chip" onclick="location.href='{{ $dashUrl }}'"
                          class="flex cursor-pointer items-center gap-2.5 rounded-xl bg-gray-100 px-2 py-1.5 transition-all duration-200 hover:bg-gray-200">
-                        <img class="h-9 w-9 rounded-full object-cover" id="nb-av"
-                             src="{{ $officeLogoUrl ?: 'https://ui-avatars.com/api/?name=' . urlencode($userName ?: 'مستخدم') . '&background=006C35&color=fff&size=64' }}"
-                             alt="{{ $userName }}" />
+                        @if($userAvatarUrl)
+                            <img class="h-9 w-9 rounded-full object-cover" id="nb-av"
+                                 src="{{ $userAvatarUrl }}" alt="{{ $userName }}" />
+                        @else
+                            {{-- لا صورة حقيقية في قاعدة البيانات ⇒ نعرض الأحرف الأولى فقط، بلا أي طلب شبكة --}}
+                            <span id="nb-ini"
+                                  class="flex h-9 w-9 items-center justify-center rounded-full bg-[#006C35] text-[13px] font-black text-white"
+                                  title="{{ $userName }}">{{ $userInitials }}</span>
+                            <img class="hidden h-9 w-9 rounded-full object-cover" id="nb-av" alt="{{ $userName }}"
+                                 data-empty-av="1" />
+                        @endif
                         <span class="hidden max-w-[80px] truncate text-[13px] font-bold text-gray-800 sm:block" id="nb-un">{{ $userFirst }}</span>
                     </div>
                     <form id="nb-logout-form" method="POST" action="{{ $logoutUrl }}" class="hidden">@csrf</form>
@@ -154,7 +166,7 @@
         <a class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold no-underline text-gray-700 hover:bg-[#006C35]/10" href="{{ route('amrtm.login') }}">
             <i class="fa fa-right-to-bracket w-5 text-center"></i><span id="mn-l">تسجيل الدخول</span>
         </a>
-        <a class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold no-underline text-gray-700 hover:bg-[#006C35]/10" href="{{ route('amrtm.register') }}">
+        <a class="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold no-underline text-gray-700 hover:bg-[#006C35]/10" href="{{ route('amrtm.login', ['mode' => 'register']) }}">
             <i class="fa fa-user-plus w-5 text-center"></i><span id="mn-r">إنشاء حساب</span>
         </a>
     @endif
@@ -219,6 +231,32 @@
     window.clsMob = function() {
         var d = document.getElementById('mob-dd');
         if (d) { d.classList.remove('flex'); d.classList.add('hidden'); }
+    };
+
+    /**
+     * صورة المستخدم في الناف بار — من قاعدة البيانات فقط.
+     *
+     * ممنوع استدعاء أي خدمة صور رمزية خارجية (ui-avatars وغيرها):
+     * إن لم توجد صورة حقيقية مرفوعة في قاعدة البيانات نعرض الأحرف
+     * الأولى من الاسم محلياً، بلا أي طلب شبكة ولا محتوى مُختلق.
+     */
+    window.AMRTM_APPLY_NAV_AVATAR = function (user) {
+        if (!user) return;
+        var av  = document.getElementById('nb-av');
+        var ini = document.getElementById('nb-ini');
+        var url = user.avatarUrl || user.avatar_url || null;
+
+        if (url) {
+            if (ini) ini.style.display = 'none';
+            if (av) { av.src = url; av.style.display = ''; }
+            return;
+        }
+
+        if (av) { av.removeAttribute('src'); av.style.display = 'none'; }
+        if (ini) {
+            ini.textContent = user.initials || (user.name || '؟').trim().charAt(0);
+            ini.style.display = '';
+        }
     };
 
     document.addEventListener('DOMContentLoaded', function() {

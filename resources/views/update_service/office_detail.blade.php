@@ -195,7 +195,7 @@ window.AMRTM_CSRF   = '{{ csrf_token() }}';
 window.AMRTM_ROUTES = {
     login:        '{{ route("amrtm.login") }}',
     home:         '{{ route("amrtm.index") }}',
-    officeReqs:   '{{ url("/amrtm/api/office-requests") }}',
+    officeReqs:   '{{ url("/api/office-requests") }}',
 };
 
 let selectedServiceId = null;

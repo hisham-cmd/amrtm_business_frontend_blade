@@ -409,8 +409,9 @@
                             @foreach($specialtyCards as $spec)
                                 @php
                                     $available = $spec['consultants_count'] > 0;
-                                    $catKey = $spec['category'] ?? null;
-                                    $catMeta = \App\Support\ConsultantCatalog::category($catKey);
+                                    $catMeta = \App\Support\ConsultantCatalog::category($spec['category'] ?? null);
+                                    // نعرض وسم التصنيف فقط إن وُجدت بيانات له فعلاً
+                                    $catKey = $catMeta ? ($spec['category'] ?? null) : null;
                                     $panelActKey = $spec['business_activity'] ?? '_other';
                                 @endphp
                                 <a class="cs {{ $available ? '' : 'cs-unavailable' }}"
@@ -608,7 +609,7 @@
             a.style.display = 'flex';
             document.getElementById('nb-un').textContent = u.name.split(' ')[0];
             const av = document.getElementById('nb-av');
-            if (av) av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=0B3B2C&color=fff&size=64`;
+            if (typeof window.AMRTM_APPLY_NAV_AVATAR === 'function') window.AMRTM_APPLY_NAV_AVATAR(u); else if (av) av.style.display = 'none';
             const dashUrl = u.role === 'admin'
                 ? (window.AMRTM_ROUTES.adminDashboard || '/amrtm/admin')
                 : (window.AMRTM_ROUTES.userDashboard || '/amrtm/dashboard');

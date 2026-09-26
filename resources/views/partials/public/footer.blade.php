@@ -30,7 +30,7 @@
                 <h3 class="mb-4 text-sm font-bold text-gray-900">حسابك</h3>
                 <ul class="space-y-3 text-sm text-gray-500">
                     <li><a href="{{ route('amrtm.login') }}" class="transition-colors no-underline duration-200 hover:text-[#006C35]">دخول</a></li>
-                    <li><a href="{{ route('amrtm.register') }}" class="transition-colors no-underline duration-200 hover:text-[#006C35]">تسجيل جديد</a></li>
+                    <li><a href="{{ route('amrtm.login', ['mode' => 'register']) }}" class="transition-colors no-underline duration-200 hover:text-[#006C35]">تسجيل جديد</a></li>
                     <li><a href="{{ route('amrtm.user.dashboard') }}" class="transition-colors no-underline duration-200 hover:text-[#006C35]">لوحة المستخدم</a></li>
                 </ul>
             </div>

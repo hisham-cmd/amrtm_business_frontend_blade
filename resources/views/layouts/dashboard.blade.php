@@ -18,7 +18,12 @@
         $dashPersona['name'] = $dashAuthUser->name;
     }
     $firstName = trim(explode(' ', (string) ($dashPersona['name'] ?? 'مستخدم'))[0]);
+    // صورة المستخدم: من قاعدة البيانات فقط (avatar_url من /auth/me) — بلا خدمات خارجية.
     $officeLogoUrl = isset($office) && $office ? $office->logo_url : null;
+    $dashAvatarUrl = $officeLogoUrl ?: ($dashAuthUser->avatar_url ?? null);
+    // $dashAuthUser قد يكون null (جلسة التوكن فقط بلا مستخدم محمّل) — لذا نتحقق قبل القراءة
+    $dashInitials  = ($dashAuthUser->initials ?? null)
+        ?: mb_substr($firstName !== '' ? $firstName : '؟', 0, 1, 'UTF-8');
 
     // رابط «الصفحة الرئيسية للوحة» — يُحسب مباشرة بدل /dashboard-hub
     // الذي كان يعيد التوجيه دائماً إلى لوحة العميل حتى للمدير.
@@ -200,11 +205,18 @@
                         data-dropdown-trigger="click"
                         class="flex cursor-pointer items-center gap-2.5 rounded-xl border border-gray-200 bg-white p-1.5 pe-4 transition-all duration-300 hover:border-emerald-200 hover:shadow-sm dark:border-gray-600 dark:bg-gray-700 dark:hover:border-emerald-400"
                     >
-                        <img
-                            class="h-9 w-9 rounded-lg object-cover ring-2 ring-emerald-100 dark:ring-gray-600"
-                            src="{{ $officeLogoUrl ?: 'https://ui-avatars.com/api/?name=' . urlencode($dashPersona['name'] ?? 'مستخدم') . '&background=006C35&color=fff&size=64' }}"
-                            alt="{{ $dashPersona['name'] ?? '' }}"
-                        />
+                        @if($dashAvatarUrl)
+                            <img
+                                class="h-9 w-9 rounded-lg object-cover ring-2 ring-emerald-100 dark:ring-gray-600"
+                                src="{{ $dashAvatarUrl }}"
+                                alt="{{ $dashPersona['name'] ?? '' }}"
+                            />
+                        @else
+                            {{-- لا صورة حقيقية في قاعدة البيانات ⇒ أحرف أولى محلية، بلا أي طلب شبكة --}}
+                            <span
+                                class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700 text-[13px] font-black text-white ring-2 ring-emerald-100 dark:ring-gray-600"
+                                title="{{ $dashPersona['name'] ?? '' }}">{{ $dashInitials }}</span>
+                        @endif
                         <span class="hidden text-right sm:block">
                             <span class="block max-w-[120px] truncate text-[13px] font-bold text-gray-800 dark:text-gray-200">{{ $firstName }}</span>
                             <span class="block text-[11px] font-medium text-emerald-600 dark:text-emerald-400">{{ $dashPersona['label'] ?? '' }}</span>

@@ -3,7 +3,11 @@
 @section('title', 'تسجيل الدخول — آمر تم')
 
 @php
-    $initialMode = session('_auth_mode', '');
+    // "?mode=register" يتقدّم على الجلسة حتى يُرسم التبويب الصحيح من الخادم
+    // بلا وميض قبل تنفيذ جافاسكربت.
+    $initialMode = (request()->query('mode') ?: session('_auth_mode', '')) === 'register'
+        ? 'register'
+        : 'login';
 @endphp
 
 @section('content')
@@ -265,9 +269,12 @@
             }
 
             document.addEventListener('DOMContentLoaded', function () {
-                const initialMode = @json(session('_auth_mode', ''));
+                // "?mode=register" من الناف بار يتقدَّم على الجلسة المخزّنة.
+                const queryMode = new URLSearchParams(location.search).get('mode');
+                const sessionMode = @json(session('_auth_mode', ''));
+                const initialMode = (queryMode || sessionMode) === 'register' ? 'register' : 'login';
 
-                showMode(initialMode === 'register' ? 'register' : 'login');
+                showMode(initialMode);
             });
         </script>
     @endpush

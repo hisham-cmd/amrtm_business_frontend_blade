@@ -326,7 +326,7 @@
         'role' => auth('business')->user()->role,
     ]) : 'null' !!};
         window.AMRTM_CSRF = '{{ csrf_token() }}';
-        window.AMRTM_API_BASE = '{{ url("/amrtm/api") }}';
+        window.AMRTM_API_BASE = '{{ url("/api") }}';
         window.AMRTM_ROUTES = {
             login: '{{ route("amrtm.login") }}',
             logout: '{{ route("amrtm.logout") }}',

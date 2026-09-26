@@ -64,10 +64,11 @@
 
         @slot('chips')
         @php
-            $catKey = $specialty->category ?? null;
-            $actKey = $specialty->business_activity ?? null;
-            $catMeta = \App\Support\ConsultantCatalog::category($catKey);
-            $actMeta = \App\Support\ConsultantCatalog::businessActivity($actKey);
+            $catMeta = \App\Support\ConsultantCatalog::category($specialty->category ?? null);
+            $actMeta = \App\Support\ConsultantCatalog::businessActivity($specialty->business_activity ?? null);
+            // نعرض الوسم فقط إن وُجدت بيانات تصنيف/نشاط مطابقة
+            $catKey = $catMeta ? ($specialty->category ?? null) : null;
+            $actKey = $actMeta ? ($specialty->business_activity ?? null) : null;
         @endphp
         @if($catKey)
             <span class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85">
@@ -423,7 +424,7 @@
             a.style.display = 'flex';
             document.getElementById('nb-un').textContent = u.name.split(' ')[0];
             const av = document.getElementById('nb-av');
-            if (av) av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name)}&background=0B3B2C&color=fff&size=64`;
+            if (typeof window.AMRTM_APPLY_NAV_AVATAR === 'function') window.AMRTM_APPLY_NAV_AVATAR(u); else if (av) av.style.display = 'none';
             const dashUrl = u.role === 'admin'
                 ? (window.AMRTM_ROUTES.adminDashboard || '/amrtm/admin')
                 : (window.AMRTM_ROUTES.userDashboard || '/amrtm/dashboard');

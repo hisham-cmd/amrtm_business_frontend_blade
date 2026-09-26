@@ -66,7 +66,7 @@
         };
         window.AMRTM_ROUTES = {
             login: '{{ route('amrtm.login') }}',
-            register: '{{ route('amrtm.register') }}',
+            register: '{{ route('amrtm.login', ['mode' => 'register']) }}',
             logout: '{{ route('amrtm.logout') }}',
             home: '{{ route('amrtm.index') }}',
             adminDashboard: '{{ route('amrtm.admin.dashboard') }}',
@@ -316,8 +316,9 @@ async function init() {
                 renderReqList();
                 renderReqPagination();
 
-            } else if (page === 'pricing' && data.services) {
-                allServices = data.services || [];
+            } else if (page === 'pricing' && ((data.pricing && data.pricing.services) || data.services)) {
+                // SSR يضعها تحت $pageData['pricing']['services']
+                allServices = (data.pricing && data.pricing.services) || data.services || [];
                 renderPricing();
 
             } else if (page === 'contracts' && data.settlements) {
@@ -360,10 +361,17 @@ async function init() {
                         : '<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--t3)">لا توجد بيانات</td></tr>';
                 }
 
-            } else if (page === 'catalog' && data.categories) {
-                _catData = data.categories || [];
-                _entData = data.entities   || [];
-                _svcData = data.services   || [];
+            } else if (page === 'catalog' && ((data.catalog && data.catalog.categories) || data.categories)) {
+                /*
+                 | SSR payload يأتي ملفوفاً: { catalog: { categories, entities, services } }
+                 | (حسب adminDashboard في AuthController: $pageData['catalog'][...]).
+                 | الشرط القديم كان data.categories مباشرة ← لم يتحقق أبداً،
+                 | فلم يُستهلك أي فرع وبقيت القوائم بلا بيانات.
+                 */
+                const _cd = data.catalog || data;
+                _catData = _cd.categories || [];
+                _entData = _cd.entities   || [];
+                _svcData = _cd.services   || [];
                 _catInitDone  = true;
                 renderCatList();
                 populateCatSelects();
@@ -1856,14 +1864,14 @@ let _catData = [],
 
 
 
-            // عرض صورة الجهة الحالية
+            // عرض صورة الجهة الحالية — الرابط الحقيقي من الـ API (ملف الباك اند)
             const preview = document.getElementById('ent-image-preview');
             const imageInput = document.getElementById('ent-image');
 
             imageInput.value = '';
 
-            if (e.images) {
-                preview.src = '/images/uploads/' + e.images;
+            if (e.image_url) {
+                preview.src = e.image_url;
                 preview.style.display = 'block';
             } else {
                 preview.src = '';

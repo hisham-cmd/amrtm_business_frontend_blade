@@ -20,8 +20,8 @@ Route::get('/catalog/{key}/{entityId}', [ServiceCatalogController::class, 'entit
 
 /* ═══ المستشارون ═══ */
 Route::get('/consultants', [ServiceCatalogController::class, 'consultantsDirectory'])->name('amrtm.consultants.directory');
-Route::get('/consultants/{id}', fn () => redirect()->route('amrtm.index'))->name('amrtm.consultants.detail')->where('id', '[0-9]+');
-Route::get('/consultants/specialty/{id}', fn () => redirect()->route('amrtm.index'))->name('amrtm.consultants.specialty')->where('id', '[0-9]+');
+Route::get('/consultants/{id}', [ServiceCatalogController::class, 'consultantDetail'])->name('amrtm.consultants.detail')->where('id', '[0-9]+');
+Route::get('/consultants/specialty/{id}', [ServiceCatalogController::class, 'consultantSpecialty'])->name('amrtm.consultants.specialty')->where('id', '[0-9]+');
 
 /* ═══ المكاتب المهنية ═══ */
 Route::get('/offices/{type}', [ServiceCatalogController::class, 'officeDirectory'])->name('amrtm.offices.directory');
@@ -52,13 +52,28 @@ Route::get('/nafath/status', fn () => response()->json(['status' => 'WAITING', '
 Route::get('/nafath/callback', fn () => redirect()->route('amrtm.index'))->name('amrtm.nafath.callback');
 
 /* ═══ تسجيل مزود/مستشار/عميل ═══ */
-Route::get('/provider-account/create', fn () => view('update_service.provider-account'))->name('amrtm.provider.account.create');
+Route::get('/provider-account/create', function (\Illuminate\Http\Request $request) {
+    /*
+     * القالب يحسب $modeConsultant = ($mode === 'consultant')، وكل شيء داخل
+     * partial::provider-office-fields-extra (الفئات + التخصصات المرتبطة بالنشاط)
+     * محجوب بـ @if(!empty($modeConsultant)). بلا تمرير $mode كانت الصفحة
+     * تظهر بلا فئات ولا تخصصات إطلاقاً.
+     * المسموح: client | consultant | office | establishment | mixed
+     */
+    $allowed = ['client', 'consultant', 'office', 'establishment', 'mixed'];
+    $mode    = $request->query('mode', 'office');
+    if (! in_array($mode, $allowed, true)) {
+        $mode = 'office';
+    }
+
+    return view('update_service.provider-account', compact('mode'));
+})->name('amrtm.provider.account.create');
 Route::get('/provider-account/specialties', fn () => response()->json(['specialties' => []]))->name('amrtm.provider.account.specialties');
 Route::post('/provider-account', fn () => redirect()->route('amrtm.index'))->name('amrtm.provider.account.store');
 
 /* ═══ العقود — إجراءات ═══ */
 Route::post('/contracts', fn () => redirect()->route('amrtm.index'))->name('amrtm.contracts.store');
-Route::post('/office/profile/update', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.profile.update');
+Route::post('/office/profile/update', [AuthController::class, 'officeProfileUpdate'])->name('amrtm.office.profile.update');
 
 /* ═══ لوحات المستخدم والعمليات (محسوبة في الباك اند — تُعرض عبر API عند توفر التوكن) ═══ */
 Route::get('/dashboard', [AuthController::class, 'dashboard'])->name('amrtm.user.dashboard');
@@ -76,13 +91,11 @@ Route::get('/contracts/{id}', fn () => view('update_service.contract_show', [
     'clauses'  => collect(),
 ]))->name('amrtm.contracts.show');
 
-/* ═══ تسجيل مزود/مستشار/عميل ═══ */
-Route::get('/provider-account/create', fn () => view('update_service.provider-account'))->name('amrtm.provider.account.create');
-
 /* ═══ لوحات المكاتب (حساب مكتب — type=office) ═══ */
 Route::get('/office/login', fn () => redirect()->route('amrtm.login'))->name('amrtm.office.login');
 Route::post('/office/logout', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.logout');
 Route::get('/office/dashboard', [AuthController::class, 'officeDashboard'])->name('amrtm.office.dashboard');
+Route::get('/office/profile', [AuthController::class, 'officeProfile'])->name('amrtm.office.profile');
 Route::get('/office', fn () => redirect()->route('amrtm.office.dashboard'));
 
 /* ═══ لوحات الإدارة — التبويبات (تعرض عبر adminDashboard) ═══ */
@@ -114,7 +127,6 @@ Route::get('/admin/org-structure', [AuthController::class, 'adminOrgStructure'])
 /* ═══ أسماء routes اسمية (تُعيد للرئيسية — تمنع RouteNotFound في القوالب) ═══ */
 Route::get('/dashboard-hub', [AuthController::class, 'hub'])->name('amrtm.dashboard.hub');
 Route::post('/office/complete/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.office.complete.save');
-Route::get('/admin/offices/create-form', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.offices.create-form');
 Route::post('/admin/org-structure/toggle', fn () => redirect()->route('amrtm.admin.org-structure'))->name('amrtm.admin.org-structure.toggle');
 /*
  | ═══ نداءات لوحة إدارة الواجهة (homepage / icons / offices) ═══
@@ -127,31 +139,6 @@ Route::post('/admin/org-structure/toggle', fn () => redirect()->route('amrtm.adm
  | الباك اند يخدم تحت /api/v1/admin/... والـ proxy يضيف v1 تلقائياً،
  | لذا المسار الصحيح من الواجهة هو /api/admin/homepage/...
  */
-/*
- | ═══ مسار تشخيص مؤقت (يُحذف بعد الفحص) ═══
- */
-Route::match(['get', 'post'], '/__diag', function (\Illuminate\Http\Request $request) {
-    $files = $request->allFiles();
-    $out = [];
-    foreach ($files as $key => $uploads) {
-        $out[$key . '__type'] = gettype($uploads);
-        $out[$key . '__arr']  = is_array($uploads) ? array_map(fn ($x) => is_object($x) ? get_class($x) : gettype($x), $uploads) : null;
-        $out[$key . '__obj']  = is_object($uploads) ? get_class($uploads) : null;
-        $first = is_array($uploads) ? ($uploads[array_key_first($uploads)] ?? null) : $uploads;
-        $out[$key . '__first'] = is_object($first) ? get_class($first) : gettype($first);
-        $out[$key . '__detail'] = $first instanceof \Illuminate\Http\UploadedFile
-            ? ['orig' => $first->getClientOriginalName(), 'mime' => $first->getMimeType(), 'err' => $first->getError(), 'size' => $first->getSize()]
-            : (is_array($first) ? $first : null);
-    }
-    return response()->json([
-        'content_type' => $request->header('Content-Type'),
-        'isMultipart'  => str_contains((string) $request->header('Content-Type'), 'multipart'),
-        'allFiles'     => $out,
-        'all'          => array_keys($request->all()),
-        'input'        => $request->except(array_keys($files)),
-    ]);
-})->name('amrtm.diag');
-
 Route::get('/admin/api/homepage/settings', fn () => response()->json([]))->name('amrtm.admin.api.homepage.settings');
 Route::post('/admin/api/homepage/settings/save', fn () => redirect()->route('amrtm.index'))->name('amrtm.admin.api.homepage.settings.save');
 Route::get('/admin/api/homepage/slides', fn () => response()->json([]))->name('amrtm.admin.api.homepage.slides');

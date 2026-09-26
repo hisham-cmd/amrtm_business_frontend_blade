@@ -198,6 +198,9 @@ body.en .cm-x{margin-right:0;margin-left:auto;}
           <div class="rounded-2xl bg-[--sur] p-8 text-center shadow-[--sh]">
             <div class="mx-auto relative h-24 w-24">
               <img class="av-img h-24 w-24 rounded-full border-4 border-[--b2] object-cover" id="av-img" src="" alt=""/>
+              {{-- بديل محلي بالأحرف الأولى عندما لا توجد صورة حقيقية في قاعدة البيانات --}}
+              <span id="av-ini"
+                    class="av-img hidden h-24 w-24 items-center justify-center rounded-full border-4 border-[--b2] bg-[--pri] text-2xl font-black text-white">؟</span>
               <div class="absolute bottom-0 start-[-2px] flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-[--pri] text-white shadow" onclick="document.getElementById('av-file').click()"><i class="ti ti-camera"></i></div>
               <x-ui.input type="file" class="av-file hidden" id="av-file" accept="image/*" onchange="uploadAvatar(this)" />
             </div>
@@ -329,7 +332,7 @@ window.Notifications = {
 };
 window.AMRTM_ROUTES = {
     login:         '{{ route("amrtm.login") }}',
-    register:      '{{ route("amrtm.register") }}',
+        register:      '{{ route("amrtm.login", ["mode" => "register"]) }}',
     logout:        '{{ route("amrtm.logout") }}',
     home:          '{{ route("amrtm.index") }}',
     userDashboard: '{{ route("amrtm.user.dashboard") }}',
@@ -341,6 +344,24 @@ window.AMRTM_HYPERPAY_ENABLED = {{ env('HYPERPAY_ENABLED', false) ? 'true' : 'fa
 window._paymentMsg = {type:'success', text: '{{ session("payment_success") }}'};
 @elseif(session('payment_error'))
 window._paymentMsg = {type:'error', text: '{{ session("payment_error") }}'};
+@else
+/* رسائل الدفع تعود من الباك اند (سيرفر منفصل) عبر query params */
+(function(){
+  try {
+    var q = new URLSearchParams(window.location.search);
+    if (q.get('payment') === 'success' && q.get('msg')) {
+      window._paymentMsg = {type:'success', text: q.get('msg')};
+      q.delete('payment'); q.delete('msg');
+      var c = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
+      window.history.replaceState({}, '', c);
+    } else if (q.get('payment') === 'error' && q.get('msg')) {
+      window._paymentMsg = {type:'error', text: q.get('msg')};
+      q.delete('payment'); q.delete('msg');
+      var c = window.location.pathname + (q.toString() ? '?' + q.toString() : '');
+      window.history.replaceState({}, '', c);
+    }
+  } catch (e) { /* ignore */ }
+})();
 @endif
 </script>
 <script src="{{ asset('js/amrtm-web.js') }}"></script>
@@ -394,8 +415,19 @@ async function loadData(){
 function renderAll(){
   const t=T[lang];
   // Sidebar profile
-  const av=userData?.avatar_url||`https://ui-avatars.com/api/?name=${encodeURIComponent(userData?.name||'U')}&background=1A237E&color=fff&size=64`;
-  setImgSrc('av-img',av);
+  // صورة الحساب: من قاعدة البيانات فقط — لا خدمة صور رمزية خارجية.
+  // إن لم توجد صورة مرفوعة، نعرض الأحرف الأولى محلياً بدل توليد صورة وهمية.
+  const av = userData?.avatar_url || null;
+  const avImg = document.getElementById('av-img');
+  const avFallback = document.getElementById('av-ini');
+  if (avImg) {
+    if (av) { avImg.src = av; avImg.style.display = ''; }
+    else { avImg.removeAttribute('src'); avImg.style.display = 'none'; }
+  }
+  if (avFallback) {
+    avFallback.textContent = userData?.initials || (userData?.name || '؟').trim().charAt(0);
+    avFallback.style.display = av ? 'none' : 'flex';
+  }
   S('av-nm',userData?.name||'—');S('dash-dd-name',userData?.name||'—');
   const roleMap={admin:{ar:'أدمن',en:'Admin'},supervisor:{ar:'مشرف',en:'Supervisor'},user:{ar:'مستخدم',en:'User'}};
   const roleLbl=(roleMap[userData?.role]||{})[lang]||t.user;
@@ -597,7 +629,7 @@ function doCharge(){
     method:'POST',
     headers:{'Accept':'application/json','X-CSRF-TOKEN':AMRTM_CSRF,'Content-Type':'application/json'},
     credentials:'same-origin',
-    body:JSON.stringify({amount:amt}),
+    body:JSON.stringify({amount:amt,return_url:window.location.origin+window.location.pathname}),
   }).then(r=>r.json().then(d=>{return {ok:r.ok,d: d||{}};}))
     .then(({ok,d})=>{
       _hpBusy=false;

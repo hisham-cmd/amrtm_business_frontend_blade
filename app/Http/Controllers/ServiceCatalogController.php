@@ -206,16 +206,233 @@ class ServiceCatalogController extends Controller
     public function consultantsDirectory(): View
     {
         $consultants = BackendApi::get('/api/v1/consultants');
-        $specialties  = BackendApi::get('/api/v1/consultant-specialties');
+        $specialties = BackendApi::get('/api/v1/consultant-specialties');
+
+        /*
+         | القالب consultants_directory يتوقع:
+         |   $specialtyCards  — كروت التخصصات (كل عنصر مصفوفة فيها business_activity)
+         |   $businessActivities — associative: key => [label_ar,label_en,icon]
+         |   $totalConsultations — عدد الاستشارات المنجزة
+         |   $categories
+         * previously were passed under different names than the view requested,
+         * so the variables were undefined and the page rendered empty.
+         */
+        $specialtyCards = $specialties->get('specialties', []);
+        if ($specialtyCards instanceof \Illuminate\Support\Collection) {
+            $specialtyCards = $specialtyCards->all();
+        }
+        $specialtyCards = is_array($specialtyCards) ? $specialtyCards : [];
+
+        $activities = $specialties->get('businessActivities');
+        if ($activities instanceof \Illuminate\Support\Collection) {
+            $activities = $activities->all();
+        }
+        if (! is_array($activities) || ! $activities) {
+            $activities = \App\Support\ConsultantCatalog::businessActivities();
+        }
+
+        $cats = $specialties->get('categories');
+        if ($cats instanceof \Illuminate\Support\Collection) {
+            $cats = $cats->all();
+        }
+        if (! is_array($cats) || ! $cats) {
+            $cats = \App\Support\ConsultantCatalog::categories();
+        }
+
+        // عدد الاستشارات المنجزة = مجموع completed_consultations_count لكل مستشار
+        $consultantList = $consultants instanceof \Illuminate\Support\Collection
+            ? $consultants->all()
+            : (is_array($consultants) ? $consultants : []);
+        $totalConsultations = 0;
+        foreach ($consultantList as $c) {
+            $c = (array) $c;
+            $totalConsultations += (int) ($c['completed_consultations_count'] ?? 0);
+        }
 
         $data = [
-            'consultants' => $consultants,
-            'specialties' => $specialties->get('specialties', []),
-            'categories'  => \App\Support\ConsultantCatalog::categories(),
-            'activities'  => \App\Support\ConsultantCatalog::businessActivities(),
+            'consultants'        => $consultants,
+            'specialties'        => $specialtyCards,
+            'specialtyCards'     => $specialtyCards,
+            'categories'         => $cats,
+            'businessActivities' => $activities,
+            'activities'         => $activities,
+            'totalConsultations' => $totalConsultations,
         ];
 
         return view('update_service.consultants_directory', $data);
+    }
+
+    /** صفحة تخصص واحد — قالب consultant_specialty */
+    public function consultantSpecialty(int $id): View|\Illuminate\Http\RedirectResponse
+    {
+        $data = BackendApi::get("/api/v1/consultant-specialties/{$id}");
+
+        $specialty = $data->get('specialty');
+        if (! is_array($specialty) && ! ($specialty instanceof \Illuminate\Support\Collection)) {
+            return redirect()->route('amrtm.consultants.directory');
+        }
+
+        $specialty = is_array($specialty) ? $specialty : $specialty->all();
+        $specialty = (object) $specialty;
+
+        $consultants = $data->get('consultants', []);
+        $consultants = $consultants instanceof \Illuminate\Support\Collection
+            ? $consultants->all()
+            : (is_array($consultants) ? $consultants : []);
+
+        /*
+         | الكارت partial/consultant-card يتوقع كل هذه الخصائص على $office.
+         | نملأ الناقص منها بقيمة افتراضية حتى لا ينهار العرض بخطأ
+         | "Undefined property" (كما حدث مع video_consultation_enabled).
+         */
+        $consultants = array_map(fn ($o) => $this->shapeOffice($o), $consultants);
+
+        $activeSpecialty = $specialty;
+
+        // قائمة المدن المستخرجة من المستشارين (تُستخدم في فلتر القالب)
+        $cities = collect($consultants)->pluck('city')->filter()->unique()->values();
+
+        // القالب يطبع $spec كنص داخل data-value → يجب أن تكون مصفوفة نصوص لا كائنات
+        $specOptions = collect(\App\Support\ConsultantCatalog::specialties())
+            ->pluck('name_ar')
+            ->filter()
+            ->map(fn ($n) => (string) $n)
+            ->unique()
+            ->values()
+            ->all();
+
+        return view('update_service.consultant_specialty', [
+            'specialty'         => $specialty,
+            'activeSpecialty'   => $activeSpecialty,
+            'consultants'       => $consultants,
+            'totalConsultants'  => count($consultants),
+            'cities'            => $cities,
+            'specOptions'       => $specOptions,
+        ]);
+    }
+
+    /**
+     * صفحة تفاصيل مكتب استشاري — قالب consultant_detail
+     * GET /api/v1/consultants/{id}
+     */
+    public function consultantDetail(int $id): View|\Illuminate\Http\RedirectResponse
+    {
+        $data   = BackendApi::get("/api/v1/consultants/{$id}");
+        $office = $data->get('office');
+
+        if (! is_array($office) && ! ($office instanceof \Illuminate\Support\Collection)) {
+            return redirect()->route('amrtm.consultants.directory');
+        }
+
+        $office = is_array($office) ? $office : $office->all();
+        $office = $this->shapeOffice((object) $office);
+
+        /*
+         | business_activity و category قد يكونان NULL في قاعدة البيانات.
+         | نستخدم type (نوع المكتب: law/services/…) كبديل حتى لا تبقى
+         | شرائح الـ hero فارغة.
+         */
+        if (! $office->category && $office->type) {
+            $office->category = $office->type;
+        }
+        if (! $office->category_label && $office->category) {
+            $office->category_label = \App\Support\ConsultantCatalog::officeTypeLabel($office->category)
+                ?? $office->category;
+        }
+        if (! $office->business_activity && $office->category) {
+            $office->business_activity = $office->category;
+        }
+        if (! $office->business_activity_label && $office->business_activity) {
+            $office->business_activity_label = \App\Support\ConsultantCatalog::officeTypeLabel($office->business_activity)
+                ?? $office->business_activity;
+        }
+
+        // الخدمات: القالب يستدعي ->isEmpty() و foreach، فنمرّر Collection
+        $services = $office->services ?? [];
+        $services = is_array($services) ? $services : [];
+        $office->services = collect($services)->map(function ($s) {
+            $s = (object) (array) $s;
+            $s->price = (float) ($s->price ?? 0);
+            $s->duration = $s->duration ?? null;
+            $s->name_en = $s->name_en ?? $s->name_ar;
+            $s->description_ar = $s->description_ar ?? null;
+            $s->description_en = $s->description_en ?? null;
+
+            return $s;
+        });
+
+        return view('update_service.consultant_detail', [
+            'office' => $office,
+        ]);
+    }
+
+    /**
+     * توحيد شكل كائن المكتب (stdClass) ليعتمد عليه partial/consultant-card
+     * وقالب consultant_detail: كل الخصائص تُملأ بقيم افتراضية آمنة.
+     */
+    private function shapeOffice(mixed $raw): object
+    {
+        $o = (object) (array) $raw;
+
+        $specs = $o->specialties ?? [];
+        $specs = $specs instanceof \Illuminate\Support\Collection ? $specs->all() : (array) $specs;
+        $o->specialties = $specs;
+        $o->specialtiesRelation = collect($specs)
+            ->map(fn ($s) => (object) (array) $s);
+
+        $first = $o->specialties[0] ?? null;
+
+        $defaults = [
+            'id'                          => 0,
+            'office_code'                 => null,
+            'name_ar'                     => 'مكتب استشاري',
+            'name_en'                     => null,
+            'logo'                        => null,
+            'logo_url'                    => null,
+            'city'                        => null,
+            'region'                      => null,
+            'type'                        => null,
+            'bio'                         => null,
+            'description_ar'              => null,
+            'description_en'              => null,
+            'category'                    => null,
+            'category_label'              => null,
+            'business_activity'           => null,
+            'business_activity_label'     => null,
+            'phone'                       => null,
+            'email'                       => null,
+            'cr_number'                   => null,
+            'is_verified'                 => false,
+            'views_count'                 => 0,
+            'total_requests_count'        => 0,
+            'completed_consultations_count' => 0,
+            'video_consultation_enabled'  => false,
+            'services'                    => [],
+            'display_specialty_ar'        => $first['name_ar'] ?? null,
+            'display_specialty_en'        => $first['name_en'] ?? null,
+        ];
+
+        foreach ($defaults as $k => $v) {
+            if (! isset($o->$k)) {
+                $o->$k = $v;
+            }
+        }
+
+        /*
+         | logo قد يكون:
+         |   - رابطاً كاملاً (http...)        → كما هو
+         |   - مساراً داخل public/ (images/…) → asset() مباشرة
+         |   - مساراً على قرص storage       → /storage/...
+         | سابقاً كان يُبنى /storage/<path> دائماً ← 404 لأن الملف في public/.
+         */
+        if (! $o->logo_url && $o->logo) {
+            $o->logo_url = match (true) {
+                \Illuminate\Support\Str::startsWith($o->logo, ['http://', 'https://', '//']) => $o->logo,
+                default => asset(ltrim($o->logo, '/')),
+            };
+        }
+
+        return $o;
     }
 
     /** دليل المكاتب — GET /api/v1/offices/{type} (تخصصات) */

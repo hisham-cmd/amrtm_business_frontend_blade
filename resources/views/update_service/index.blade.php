@@ -4308,7 +4308,7 @@
         window.AMRTM_API_BASE = '{{ url("/api") }}';
         window.AMRTM_ROUTES = {
             login: '{{ route("amrtm.login") }}',
-            register: '{{ route("amrtm.register") }}',
+            register: '{{ route("amrtm.login", ["mode" => "register"]) }}',
             logout: '{{ route("amrtm.logout") }}',
             home: '{{ route("amrtm.index") }}',
             userDashboard: '{{ route("amrtm.user.dashboard") }}',
@@ -4926,16 +4926,10 @@
                 authBox.style.display = "flex";
                 const shortName = (u.name || "مستخدم").split(" ")[0];
                 document.getElementById("nb-un").textContent = shortName;
-                const av = document.getElementById("nb-av");
-                const avatar =
-                    u.avatar_url ||
-                    u.profile_photo ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || "مستخدم")}&background=006C35&color=fff&size=64`;
-                av.src = avatar;
-                av.onerror = () => {
-                    av.onerror = null;
-                    av.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(u.name || "مستخدم")}&background=006C35&color=fff&size=64`;
-                };
+                // صورة الحساب: من قاعدة البيانات فقط — لا خدمة صور رمزية خارجية.
+                if (typeof window.AMRTM_APPLY_NAV_AVATAR === "function") {
+                    window.AMRTM_APPLY_NAV_AVATAR(u);
+                }
                 // Route to correct dashboard
                 const isAdmin = u.role === "admin" || u.role === "supervisor" || u.is_admin === true;
                 const dashUrl = isAdmin
@@ -5195,6 +5189,15 @@
         }
 
         /* ══ LOGIN GATE MODAL ══ */
+        /**
+         * يضيف ?redirect= دون كسر أي معامل موجود مسبقاً
+         * (رابط التسجيل نفسه يحمل ?mode=register).
+         */
+        function withRedirect(url, encodedRedirect) {
+            if (!url) return url;
+            return url + (url.indexOf('?') > -1 ? '&' : '?') + 'redirect=' + encodedRedirect;
+        }
+
         function openLgm() {
             const t = T[lang];
             const routes = window.AMRTM_ROUTES || {};
@@ -5214,9 +5217,9 @@
             document.getElementById("lgm-reg-lbl").textContent =
                 lang === "ar" ? "إنشاء حساب جديد" : "Create Account";
             document.getElementById("lgm-login-btn").href =
-                (routes.login || "/login") + "?redirect=" + redirectUrl;
+                withRedirect(routes.login || "/login", redirectUrl);
             document.getElementById("lgm-reg-btn").href =
-                (routes.register || "/register") + "?redirect=" + redirectUrl;
+                withRedirect(routes.register || "/login?mode=register", redirectUrl);
             document.getElementById("lgm").classList.add("open");
             document.body.style.overflow = "hidden";
         }

@@ -4,7 +4,16 @@
 
 @section('dashboard-content')
 @php
-    $officeUser = auth('office')->user();
+    /*
+     | guard 'office' في الواجهة مدعوم بجلسة وليست sanctum، لذلك auth('office')
+     | يعيد null هنا. الحساب يصل من requireOfficeUser() ويُمرَّر كـ $officeUser،
+     | ونمرّره أيضاً كـ $currentAuthUser ليستخدمه layouts/dashboard.
+     */
+    $officeUser = $officeUser ?? null;
+    $currentAuthUser = $officeUser;
+    $frontUser = $officeUser;
+    $frontAuthed = (bool) $officeUser;
+
     $accountTypes = array_values($office->accountTypes()) ?: [\App\Support\DashboardRegistry::TYPE_SUPPORT_OFFICE];
     $personaLabel = implode(' + ', array_filter(array_map(
         fn ($t) => \App\Models\Business\Office::$accountTypeLabels[$t]['ar'] ?? null,

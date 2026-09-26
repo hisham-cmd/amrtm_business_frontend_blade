@@ -47,43 +47,58 @@
         </ol>
         @endslot
 
+        {{-- العنوان = التخصص؛ اسم المكتب والمدينة يظهران في slot(subtitle) أسفله --}}
         <x-slot:title>{{ $specAr }}</x-slot:title>
         <x-slot:badge>
             <i class="ti {{ $cfg['icon'] }} text-[12px]"></i>
             <span>{{ $cfg['name_ar'] }} معتمد</span>
         </x-slot:badge>
 
-        @slot('chips')
-        <span
-            class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
-                class="ti ti-shield-check"></i> معتمد وموثّق من منصة آمر تم</span>
-        @if($office->business_activity_label)
-            <span
-                class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
-                    class="ti ti-briefcase"></i> {{ $office->business_activity_label }}</span>
-        @endif
-        @if($office->category_label)
-            <span
-                class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
-                    class="ti ti-category"></i> {{ $office->category_label }}</span>
-        @endif
-        <span
-            class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
-                class="ti ti-message-dots"></i> استشارة فورية</span>
-        @if($office->city)
-            <span
-                class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
-                    class="ti ti-map-pin"></i> {{ $office->city }}</span>
-        @endif
-        @endslot
+        {{-- hero لا يدعم slot 'chips' (undefined يُهمَل) — نعرضه عبر slot 'info' المدعوم --}}
+        <x-slot:info>
+            <div class="flex flex-wrap items-center justify-center gap-1.5 lg:justify-end">
+                <span
+                    class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
+                        class="ti ti-shield-check"></i> معتمد وموثّق من منصة آمر تم</span>
+                @if($office->business_activity_label)
+                    <span
+                        class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
+                            class="ti ti-briefcase"></i> {{ $office->business_activity_label }}</span>
+                @endif
+                @if($office->category_label && $office->category_label !== $office->business_activity_label)
+                    <span
+                        class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
+                            class="ti ti-category"></i> {{ $office->category_label }}</span>
+                @endif
+                <span
+                    class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
+                        class="ti ti-message-dots"></i> استشارة فورية</span>
+                @if($office->city)
+                    <span
+                        class="cui-glass inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-white/85"><i
+                            class="ti ti-map-pin"></i> {{ $office->city }}</span>
+                @endif
+            </div>
+        </x-slot:info>
 
         @slot('subtitle')
-        @if($office->description_ar)
-            <span>{{ $office->description_ar }}</span>
-        @else
-            <span>استشارات وخدمات متخصصة ومعتمدة تُقدَّم ومُتابَعتها بإشراف كامل وضمان من منصة آمر تم لقطاع الأعمال.
+            @if($office->name_ar)
+                <span class="mb-1 flex flex-wrap items-center gap-1.5 text-[15px] font-black text-white/95">
+                    <i class="ti ti-building text-[15px]"></i>
+                    {{ $office->name_ar }}
+                    @if($office->city)
+                        <span class="inline-flex items-center gap-1 text-[13px] font-bold text-white/70">
+                            <i class="ti ti-map-pin text-[12px]"></i> {{ $office->city }}
+                        </span>
+                    @endif
+                </span>
+            @endif
+            @if($office->description_ar)
+                <span>{{ $office->description_ar }}</span>
+            @else
+                <span>استشارات وخدمات متخصصة ومعتمدة تُقدَّم ومُتابَعتها بإشراف كامل وضمان من منصة آمر تم لقطاع الأعمال.
             </span>
-        @endif
+            @endif
        
         @endslot
 
@@ -411,7 +426,7 @@
         window.AMRTM_ROUTES = {
             login: '{{ route("amrtm.login") }}',
             home: '{{ route("amrtm.index") }}',
-            officeReqs: '{{ url("/amrtm/api/office-requests") }}',
+            officeReqs: '{{ url("/api/office-requests") }}',
         };
 
         let selectedServiceId = null;

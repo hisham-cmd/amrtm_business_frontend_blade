@@ -31,7 +31,12 @@ if (! function_exists('amrtm_proxy_multipart')) {
         $multipart = [];
 
         foreach ($request->allFiles() as $key => $uploads) {
-            foreach ((array) $uploads as $file) {
+            // كلFiles обычно UploadedFile واحد (غير مصفوفة). cast إلى array
+            // على كائن PHP يحوّله إلى مصفوفة عناصره الداخلية (خصائصه!)
+            // فيتولد خطأ — لذا نطبّع بشكل صحيح:
+            $list = is_array($uploads) ? $uploads : [$uploads];
+
+            foreach ($list as $file) {
                 if (! $file instanceof \Illuminate\Http\UploadedFile) {
                     continue;
                 }
@@ -94,6 +99,7 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
 
     $method  = strtolower($request->method());
     $isMultipart = str_contains((string) $request->header('Content-Type'), 'multipart');
+    $multipart = $isMultipart ? amrtm_proxy_multipart($request) : [];
 
     // تحضير request الوكيل
     //
@@ -128,13 +134,11 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
         } elseif ($method === 'put' || $method === 'patch') {
             // PUT مع ملفات (تعديل سلايد + استبدال الصورة) يمر كـ multipart أيضاً
             if ($isMultipart) {
-                $resp = $builder->asMultipart()->put($url, amrtm_proxy_multipart($request));
+                $resp = $builder->asMultipart()->put($url, $multipart);
             } else {
                 $resp = $builder->$method($url, $body);
             }
         } elseif ($isMultipart) { // post multipart (رفع ملفات)
-            $multipart = amrtm_proxy_multipart($request);
-
             $resp = $multipart
                 ? $builder->asMultipart()->post($url, $multipart)
                 : $builder->post($url, $body);

@@ -55,7 +55,6 @@ return Application::configure(basePath: dirname(__DIR__))
             'provider-account',
             'office/profile/update',
             'api/*',
-            '__diag',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

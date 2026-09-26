@@ -15,28 +15,38 @@ use Illuminate\View\View;
  */
 class AuthController extends Controller
 {
-    /** معروض صفحة تسجيل الدخول (amrtm.login) */
-    public function showLogin(): View
+    /**
+     * صفحة الدخول / التسجيل (amrtm.login)
+     *
+     * واجهة واحدة بتبويبين. "?mode=register" يفتح تبويب «حساب جديد»
+     * مباشرة — يستعمله زر «تسجيل» في الناف بار ليصلك إلى التبويب
+     * الصحيح بدل صفحة منفصلة.
+     */
+    public function showLogin(Request $request): View
     {
-        return view('amrtm.auth.login');
+        return view('amrtm.auth.login', [
+            'authMode' => $request->query('mode') === 'register' ? 'register' : 'login',
+        ]);
     }
 
-    /** معروض صفحة إنشاء حساب (amrtm.register) */
-    public function showRegister(): View
+    /** إنشاء حساب — المسار القديم يوجّه إلى الواجهة الموحّدة على تبويب التسجيل */
+    public function showRegister(): \Illuminate\Http\RedirectResponse
     {
-        return view('amrtm.auth.register');
+        return redirect()->route('amrtm.login', ['mode' => 'register']);
     }
 
     /** معالجة POST الدخول → يرسل إلى الـ API ويخزّن التوكن */
     public function submit(Request $request): \Illuminate\Http\RedirectResponse
     {
+        $email = (string) $request->input('email');
+
         $data = BackendApi::post('/api/v1/auth/login', [
-            'email'    => $request->input('email'),
+            'email'    => $email,
             'password' => $request->input('password'),
         ]);
 
         // تشخيص سريري موجز
-        \Illuminate\Support\Facades\Log::info('PW-LOGIN email=' . $request->input('email'));
+        \Illuminate\Support\Facades\Log::info('PW-LOGIN email=' . $email);
 
         // استخراج التوكن من المغلف { isSuccess, value: { token }, error }
         $value = $data->get('value');
@@ -45,12 +55,35 @@ class AuthController extends Controller
             $token = $value->get('token');
         }
         \Illuminate\Support\Facades\Log::info('PW-LOGIN token=' . ($token ? 'OK' : 'NULL'));
-        if (!$token) {
-            $err  = $data->get('error');
-            $msg  = is_array($err) ? ($err['message'] ?? 'فشل الدخول.') : 'فشل الدخول.';
 
-            // التوجيه الصريح بدل back() — مضمون كنوع RedirectResponse (يتفادى TypeError)
-            return redirect()->route('amrtm.login')->withErrors(['email' => $msg]);
+        if (!$token) {
+            $err     = $data->get('error');
+            $apiCode = is_array($err) ? ($err['code'] ?? null) : null;
+            $apiMsg  = is_array($err) ? ($err['message'] ?? null) : null;
+            $status  = (int) $data->get('statusCode');
+
+            /*
+             | رسالة دقيقة بدل «فشل الدخول» العامة:
+             |  - الباك اند غير متاح  → رسالة تشغيلية (تحقّق من الخدمة/الشبكة)
+             |  - حساب موقوف          → رسالة الباك اند
+             |  - طلب غير صالح        → رسالة الباك اند
+             |  - بيانات خاطئة        → رسالة الباك اند (أو الافتراضية)
+             */
+            if (BackendApi::isInfraError($data)) {
+                $msg = $apiMsg ?: 'تعذّر الاتصال بسيرفر الباك اند. تأكد أن الخدمة تعمل ثم أعد المحاولة.';
+            } elseif ($apiCode === 'ACCOUNT_DISABLED') {
+                $msg = $apiMsg ?: 'حسابك موقوف. تواصل مع الإدارة.';
+            } elseif ($status === 422 || $apiCode === 'VALIDATION_FAILED') {
+                $msg = 'تأكد من صيغة البريد الإلكتروني وكلمة المرور ثم أعد المحاولة.';
+            } else {
+                $msg = $apiMsg ?: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.';
+            }
+
+            \Illuminate\Support\Facades\Log::warning("PW-LOGIN FAIL email={$email} status={$status} code=" . ($apiCode ?? '-'));
+
+            return redirect()->route('amrtm.login')
+                ->withInput(['email' => $email])
+                ->withErrors(['email' => $msg]);
         }
 
         // تخزين التوكن في الجلسة (آمن، يمر عبر Laravel session مع web middleware)
@@ -565,6 +598,77 @@ class AuthController extends Controller
             // التخصصات مرتبطة بالمكتب في القالب (OFFICE_SPECIALTIES / OFFICE_SELECTED_IDS)
             'specialties'   => $this->officeSpecialties($office),
             'selectedIds'   => $this->officeSelectedSpecialtyIds($office),
+        ]);
+    }
+
+    /**
+     * حفظ تعديلات ملف المكتب — يمرّر الطلب (مع الشعار) للباك اند.
+     * POST /office/profile/update
+     */
+    public function officeProfileUpdate(Request $request): \Illuminate\Http\RedirectResponse
+    {
+        $guard = $this->requireOfficeUser();
+        if ($guard instanceof \Illuminate\Http\RedirectResponse) {
+            return $guard;
+        }
+
+        $back = route('amrtm.office.profile');
+
+        $token = $this->token();
+        if (! $token) {
+            return redirect()->route('amrtm.office.login')
+                ->withErrors(['email' => 'انتهت الجلسة، الرجاء تسجيل الدخول مجدداً.']);
+        }
+
+        // الحقول النصية تُمرَّر كما هي (بما فيها specialty_ids و password)
+        $fields = $request->except(['_token', 'logo']);
+
+        $resp = (new \App\Support\BackendApiWithToken($token))->callMultipart(
+            'POST',
+            '/api/v1/office/profile',
+            $fields,
+            $request->file('logo') ? ['logo' => $request->file('logo')] : []
+        );
+
+        $error = $resp->get('error.message');
+        if ($error) {
+            // القالب يعرض session('success') و $errors، فنمرّر الرسالة بالطريقتين
+            return redirect()->to($back)
+                ->with('error', $error)
+                ->withErrors(['office_name_ar' => $error])
+                ->withInput();
+        }
+
+        return redirect()->to($back)->with('success', 'تم حفظ بيانات المكتب بنجاح.');
+    }
+
+    /**
+     * ملف المكتب — GET /office/profile
+     * القالب update_service/office/profile يقرأ $office و auth('office')
+     * مباشرةً، فالمطلوب فقط تمرير كائن المكتب بعد التحقق من الجلسة.
+     */
+    public function officeProfile(): \Illuminate\View\View|\Illuminate\Http\RedirectResponse
+    {
+        $guard = $this->requireOfficeUser();
+        if ($guard instanceof \Illuminate\Http\RedirectResponse) {
+            return $guard;
+        }
+
+        /** @var \App\Models\Business\OfficeUser $officeUser */
+        $officeUser = $guard;
+        $office = $officeUser->office;
+
+        if (! $office) {
+            return redirect()->route('amrtm.office.dashboard')
+                ->withErrors(['email' => 'تعذّر تحميل بيانات المكتب.']);
+        }
+
+        return view('update_service.office.profile', [
+            'office'       => $office,
+            'officeUser'   => $officeUser,
+            // القالب يقرأ هذه لتمييز التخصصات المختارة في نموذج التعديل
+            'specialties'  => $this->officeSpecialties($office),
+            'selectedIds'  => $this->officeSelectedSpecialtyIds($office),
         ]);
     }
 
