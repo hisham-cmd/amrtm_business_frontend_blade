@@ -236,7 +236,26 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
     try {
         $resp = \App\Support\BackendHttp::send($build, $url);
     } catch (\Throwable $e) {
-        \Illuminate\Support\Facades\Log::warning('Proxy fetch failed: ' . $e->getMessage());
+        /*
+         | ⚠️ كنا نسجّل رسالة الاستثناء فقط، فكان السجل يخلو من المعلومة
+         | الأهم: أي رابط فشل، وأي صنف استثناء (اتصال؟ TLS؟ مهلة؟) — وكان
+         | لا بد من فتح السجل على الخادم لمعرفة السبب الحقيقي.
+         | الآن نسجّل كل شيء ونُبقي الرسالة العامة للواجهة.
+         */
+        $log = \Illuminate\Support\Facades\Log::warning('Proxy fetch failed', [
+            'url'         => $url,
+            'path'        => $apiPath,
+            'method'      => strtoupper($method),
+            'exception'   => $e::class,
+            'message'     => $e->getMessage(),
+            'file'        => $e->getFile() . ':' . $e->getLine(),
+        ]);
+
+        \Illuminate\Support\Facades\Log::warning(
+            'Proxy fetch failed: ' . $e->getMessage()
+            . ' | url=' . $url
+            . ' | ' . $e::class
+        );
 
         return response()->json([
             'isSuccess' => false,

@@ -182,6 +182,58 @@ Route::get('/media/{path}', function (\Illuminate\Http\Request $request) {
     exit;
 })->where('path', '[A-Za-z0-9._\-/]+')->name('amrtm.media.proxy');
 
+/* ═══ مسار تشخيصي: هل تستطيع الواجهة الوصول للباك اند؟ ═══ */
+/*
+ | افتحه من المتصفح بعد الرفع: /__diag
+ | يعرض رابط الباك اند كما يراه الخادم، ونتيجة الاتصال، وهل الصفحة
+ | التي ردّ بها الباك اند هي تحدّي aes.js أم بيانات صالحة.
+ | مُتاح في كل البيئات (لا يقبل أي مدخلات من المستخدم) ويمكن حذفه لاحقاً.
+ */
+Route::get('/__diag', function () {
+    $backend = rtrim((string) env('BACKEND_API_URL', '(غير معيّن)'), '/');
+    $out = [
+        'backend_url'   => $backend,
+        'app_env'       => app()->environment(),
+        'app_url'       => config('app.url'),
+        'frontend_url'  => env('FRONTEND_URL', '(غير معيّن)'),
+        'cache_store'   => config('cache.default'),
+        'cookie_cached' => false,
+        'connect'       => 'لم يُختبر',
+    ];
+
+    try {
+        $out['cookie_cached'] = \Illuminate\Support\Facades\Cache::get(\App\Support\BackendHttp::cookieCacheKey()) !== null;
+    } catch (\Throwable $e) {
+        $out['cookie_cached'] = 'فشل: ' . $e->getMessage();
+    }
+
+    try {
+        $resp = \App\Support\BackendHttp::send(
+            fn (string $u, ?string $c) => \Illuminate\Support\Facades\Http::timeout(20)
+                ->withHeaders(array_filter([
+                    'Accept'           => 'application/json',
+                    'X-Requested-With' => 'XMLHttpRequest',
+                    'Cookie'           => $c,
+                ]))
+                ->get($u),
+            $backend . '/api/v1/catalog/ministries'
+        );
+
+        $body = (string) $resp->body();
+        $out['status']   = $resp->status();
+        $out['bytes']    = strlen($body);
+        $out['is_challenge'] = \App\Support\BackendHttp::isChallenge($resp);
+        $out['connect']  = $out['is_challenge'] ? 'يعمل لكن يردّ تحدّي aes.js' : 'يعمل ✅';
+        $out['sample']   = mb_substr(preg_replace('/\s+/', ' ', $body), 0, 160);
+    } catch (\Throwable $e) {
+        $out['connect']     = 'فشل ❌';
+        $out['exception']   = $e::class;
+        $out['error']       = $e->getMessage();
+    }
+
+    return response()->json($out, 200, [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+})->name('amrtm.diag');
+
 /* ═══ تسجيل مزود/مستشار/عميل ═══ */
 Route::get('/provider-account/create', function (\Illuminate\Http\Request $request) {
     /*
