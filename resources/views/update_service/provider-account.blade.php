@@ -2507,8 +2507,24 @@ ${isChecked ? `
                     window.AMRTM_EMBED = EMBED;
                     window.amrtmEmbedNotify = notify;
 
-                    // إبلاغ النافذة بأننا جاهزون (تُخفي مؤشر التحميل)
+                    /*
+                     | نُعلم النافذة الأم في حالتين:
+                     |  ready   → النموذج حُمِّل وجاهز (تُخفي مؤشر التحميل)
+                     |  success → العملية نجحت (النافذة تُغلق وتحدّث القائمة)
+                     |
+                     | كشف النجاح: القالب يعرض بطاقة النجاح فقط عند وجود
+                     | session('success')، فهي المؤشر الموثوق.
+                     */
                     document.addEventListener('DOMContentLoaded', function () {
+                        var done = document.querySelector('[data-amrtm-flash-static]');
+                        var message = null;
+
+                        if (done) {
+                            var p = done.querySelector('p');
+                            message = p ? p.innerText.trim() : null;
+                            notify('success', message);
+                        }
+
                         notify('ready');
                     });
                 })();

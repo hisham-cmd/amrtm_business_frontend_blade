@@ -1693,17 +1693,17 @@
             <div class="cui-steps">
                 <div class="cui-step-item active" id="step-ind-1">
                     <span class="cui-step-num">1</span>
-                    <span class="cui-step-label">اختيار الخدمة</span>
+                    <span class="cui-step-label" data-label-ar="اختيار الخدمة" data-label-en="Select service">اختيار الخدمة</span>
                 </div>
                 <div class="cui-step-line"></div>
                 <div class="cui-step-item" id="step-ind-2">
                     <span class="cui-step-num">2</span>
-                    <span class="cui-step-label">بيانات الطلب</span>
+                    <span class="cui-step-label" data-label-ar="بيانات الطلب" data-label-en="Request data">بيانات الطلب</span>
                 </div>
                 <div class="cui-step-line"></div>
                 <div class="cui-step-item" id="step-ind-3">
                     <span class="cui-step-num">3</span>
-                    <span class="cui-step-label">تأكيد الطلب</span>
+                    <span class="cui-step-label" data-label-ar="تأكيد الطلب" data-label-en="Confirm">تأكيد الطلب</span>
                 </div>
             </div>
 
@@ -2327,23 +2327,64 @@
         }
 
         /**
-         * إظهار/إخفاء كتلة متطلبات الخدمة للزائر.
+         * إظهار/إخفاء كتلة متطلبات الخدمة.
          *
-         * الكتلة امتداد للخطوة الأولى (وليست خطوة مستقلة)، فتظهر للزائر فقط
-         * بعد ضغط "المتابعة" — أي بعد بدء الخدمة فعلياً.
+         * ⚠️ هذه الكتلة بالتصميم نفسه الذي تستخدمه الخطوة الثانية
+         * (cui-form-body + عناوين أقسام)، فظهورها للزائر كان يُقرأ
+         * خطأً على أنها "الخطوة الثانية" معروضة — وهو ما ألغى عملياً
+         * أثر إخفاء الخطوة الأولى.
          *
-         * الفارق الجوهري: step1Started. مجرد اختيار خدمة لا يكفي؛ لو اكتفينا
-         * بـ currentStep === 1 لظهرت الكتلة فور التحديد لأن pickService()
-         * تستدعي renderCustomFields() → serviceFieldsVisibility() أثناء
-         * البقاء على الخطوة الأولى.
+         * لذلك: الزائر لا يراها إطلاقاً. حقوله تُملأ في الخطوة الثانية
+         * بعد تسجيل الدخول، فتظهر له حينها داخل لوحتها الحقيقية.
          */
         function serviceFieldsVisibility() {
             const panel = document.getElementById('step-1-fields');
             if (!panel) return;
+
+            // الزائر: لا كتلة متطلبات — فقط بوابة تسجيل الدخول.
+            if (!window.AMRTM_USER) {
+                panel.style.display = 'none';
+                return;
+            }
+
             const shouldShow = currentStep === 1
                 && step1Started
                 && selectedServices.length > 0;
             panel.style.display = shouldShow ? 'block' : 'none';
+        }
+
+        /**
+         * مؤشر الخطوات في وضع الزائر.
+         *
+         * المؤشر يشير إلى الخطوة 2 بعنوان "بيانات الطلب"، وهي غير موجودة
+         * للزائر — فيظهر مؤشراً يَعِد بخطوة لا تُعرض. نبدّل عنوان الخطوة
+         * النشطة إلى "تسجيل الدخول" ليعكس ما سيحدث فعلاً.
+         */
+        function guestIndicators(step) {
+            // استعادة العناوين الأصلية أولاً (قد تكون بدّلت من نداء سابق)
+            resetIndicatorLabels();
+
+            const labels = document.querySelectorAll('.cui-step-label');
+
+            for (let i = 1; i <= 3; i++) {
+                const ind = document.getElementById('step-ind-' + i);
+                if (!ind) continue;
+                ind.classList.remove('active', 'done');
+                if (i < step) ind.classList.add('done');
+                else if (i === step) ind.classList.add('active');
+            }
+
+            // الخطوة النشطة للزائر هي بوابة الدخول لا "بيانات الطلب"
+            if (labels[step - 1]) {
+                labels[step - 1].textContent = lang === 'ar' ? 'تسجيل الدخول' : 'Sign in';
+            }
+        }
+
+        /** يعيد عناوين المؤشر الأصلية من data-label-* (بعد الرجوع أو تسجيل الدخول) */
+        function resetIndicatorLabels() {
+            document.querySelectorAll('.cui-step-label[data-label-ar]').forEach(el => {
+                el.textContent = lang === 'ar' ? el.dataset.labelAr : el.dataset.labelEn;
+            });
         }
 
         function renderCustomFields() {
@@ -2537,6 +2578,10 @@
         }
 
         function updateIndicators(step) {
+            // استعادة العناوين الأصلية أولاً: المؤشر قد يكون بدّل عنوان
+            // الخطوة النشطة إلى "تسجيل الدخول" في وضع الزائر.
+            resetIndicatorLabels();
+
             for (let i = 1; i <= 3; i++) {
                 const ind = document.getElementById('step-ind-' + i);
                 if (!ind) continue;
@@ -2556,14 +2601,17 @@
                 /*
                  |----------------------------------------------------------------------
                  | الزائر: الخطوة الثانية والثالثة محجوبتان عنه (الجزء Auth في القالب)
-                 | فلم يبقَ له سوى طريقتين: إكمال بيانات الخدمة ثم تسجيل الدخول.
+                 | فلم يبقَ له سوى طريقتين: تسجيل الدخول أولاً، ثم إكمال الطلب.
                  |
-                 | عند "المتابعة" ننتقل إلى مرحلة البيانات: نُخفي لوحة اختيار
-                 | الخدمة (step-1) ونُظهر كتلة المتطلبات (#step-1-fields) مع بوابة
-                 | تسجيل الدخول تحتها. سابقاً كان يُعاد تنشيط step-1 فتبقى
-                 | خيارات الخدمات ظاهرة وتبدو كأن شيئاً لم يحدث.
+                 | عند "المتابعة" ننتقل إلى مرحلة تسجيل الدخول:
+                 |   - نُخفي لوحة اختيار الخدمة (step-1)
+                 |   - نُخفي كتلة المتطلبات (step-1-fields) — تصميمها يوحي
+                 |     بالخطوة الثانية، فقد تُقرأ كذلك
+                 |   - نُظهر بوابة تسجيل الدخول
+                 | ويصبح عنوان الخطوة النشطة في المؤشر "تسجيل الدخول"
+                 | لا "بيانات الطلب" (وهي غير معروضة أصلاً للزائر).
                  |
-                 | "رجوع" يعيده إلى اختيار الخدمة ويُخفي المتطلبات والبوابة.
+                 | "اختيار خدمة أخرى" يعيده إلى اختيار الخدمة ويُخفي البوابة.
                  */
 
                 const p1 = document.getElementById('step-1');
@@ -2575,14 +2623,15 @@
                     if (p1) p1.classList.add('active');
                     if (gate) gate.style.display = 'none';
                     currentStep = 1;
+                    resetIndicatorLabels();
                     updateIndicators(1);
                 } else {
-                    // متابعة ⇒ مرحلة بيانات الخدمة + بوابة الدخول
+                    // متابعة ⇒ مرحلة تسجيل الدخول
                     step1Started = true;
                     if (p1) p1.classList.remove('active');
                     if (gate) gate.style.display = 'block';
                     currentStep = 1;
-                    updateIndicators(2);
+                    guestIndicators(2);
                 }
 
                 serviceFieldsVisibility();

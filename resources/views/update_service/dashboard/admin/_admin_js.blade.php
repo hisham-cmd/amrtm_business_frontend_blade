@@ -3550,17 +3550,37 @@ function serviceOptionsText(options) {
             if (btn) selectOfficeFormKind(btn.dataset.ofmKind);
         });
 
-        /* الجسر مع الـ iframe: يبلّغنا النموذج عن الجاهزية */
+        /* الجسر مع الـ iframe: يبلّغنا النموذج عن الجاهزية والنجاح */
         window.addEventListener('message', function (event) {
             if (event.origin !== window.location.origin) return;
 
             const data = event.data;
             if (!data || data.source !== 'amrtm-provider-form') return;
 
+            const loader = document.getElementById('ofm-loader');
+
             if (data.kind === 'ready') {
-                const loader = document.getElementById('ofm-loader');
                 if (loader) loader.classList.add('hidden');
                 return;
+            }
+
+            if (data.kind === 'success') {
+                if (loader) loader.classList.add('hidden');
+
+                // ننتظر لحظة قصيرة ليرى المستخدم رسالة النجاح قبل الإغلاق
+                setTimeout(function () {
+                    closeOfficeFormModal();
+
+                    const isUpdate = data.action === 'update';
+                    showToast(
+                        data.message || (isUpdate ? 'تم تحديث بيانات المكتب بنجاح.' : 'تم إرسال طلب التسجيل بنجاح.'),
+                        'success'
+                    );
+
+                    // إعادة تحميل القائمة والإحصائيات لإظهار النتيجة
+                    if (typeof loadOffices === 'function') loadOffices();
+                    if (typeof loadOfficeStats === 'function') loadOfficeStats();
+                }, 1400);
             }
         });
 

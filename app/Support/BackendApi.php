@@ -53,8 +53,25 @@ class BackendApi
     }
 
     /**
-     * هل نجح الطلب فعلاً؟ — يعتمد على استجابة الـ API نفسها لا على تغيّر شكل البيانات.
-     * أي فشل (شبكة، 4xx، 5xx، أو استجابة بلا isSuccess) ⇒ false.
+     * هل نجح الطلب فعلاً؟
+     *
+     * ⚠️ كان غياب مفتاح isSuccess يُعتبر «نجاحاً» (return true)، فتنجح
+     * حالة أخطر من أي خطأ: الباك اند يردّ 302 (فشل مصادقة أو back() بلا
+     * Referer) فيتابعه عميل HTTP ويصل 200 من صفحة الجذر — وهي استجابة
+     * بلا isSuccess ← فكانت الدالة تُرجع true بينما **لم يُحفظ شيء**،
+     * وتعرض الواجهة «تم التحديث بنجاح» كذباً.
+     *
+     * الاستجابة الوحيدة التي بلا isSuccess وتُعد نجاحاً هي نقطة الفهرسة
+     * (/api/v1) لأنها فعلاً تعيد ذلك. لذلك نتعامل مع الغياب كفشل ونطلب
+     * isSuccess صراحةً.
+     *
+     * ⚠️ استثناء: نقاط الكتالوج العامة
+     * (/api/v1/catalog/{key} و /catalog/{key}/{entityId} و /api/v1/services
+     *  و /api/v1/home …) ترجع بياناتها **الظاهرة** بلا غلاف isSuccess،
+     * لأنها نقاط قراءة عامة للواجهة. ف-controller الخاص بها
+     * (categoryPage/entityPage) يستدعي isFailed() عليها، فكان كل هذا
+     * المحتوى يرجع 404 «التصنيف غير موجود» رغم أن البيانات سليمة.
+     * نميّزها: إن لم يوجد isSuccess ووجدنا حمولة بيانات حقيقية فهي نجاح.
      */
     public static function isSuccess(\Illuminate\Support\Collection $response): bool
     {
@@ -62,12 +79,20 @@ class BackendApi
             return false;
         }
 
-        // استجابات /api/v1 تعيد دائماً isSuccess؛ الـ endpoints الأخرى قد لا تفعل.
         if ($response->has('isSuccess')) {
             return (bool) $response->get('isSuccess');
         }
 
-        return true;
+        /*
+         | نقاط قراءة عامة بلا غلاف isSuccess: نجاح ما دامت تحمل بيانات.
+         | نفحص مفاتيح محتوى معروفة (قائمة/تصنيف) ولا نكتفي بـ "غير فارغ"
+         | حتى لا تُحسب رسالة خطأ عارضة كنجاح.
+         */
+        return $response->hasAny([
+            'category', 'entities', 'services', 'items', 'data', 'results',
+            'ministries', 'authorities', 'home', 'sections', 'slides',
+            'icons', 'offices', 'types', 'specialties',
+        ]);
     }
 
     /** هل فشلت الاستجابة؟ العكس المنطقي لـ isSuccess. */

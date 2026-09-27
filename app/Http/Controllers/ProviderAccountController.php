@@ -111,8 +111,19 @@ class ProviderAccountController extends Controller
         | redirect — لذلك نردّ JSON في تلك الحالة، و302 في غيرها.
         */
 
-        session()->forget('amrtm_api_token');
-        session()->regenerate();
+        /*
+         | كان forget('amrtm_api_token') + regenerate() يُنفَّذان دائماً،
+         | وهما صحيحان في التسجيل العام: المستخدم الجديد يجب ألا يبقى
+         | مسجّلاً بحساب من أنشأه.
+         |
+         | لكن في وضع التضمين (النافذة المنبثقة) ينشئ المشرف مكتباً وهو
+         | أصلاً مسجّل دخول، فكان الأمر يطرده من جلسته فور إنشاء أي مكتب.
+         | لذلك نحافظ على الجلسة عندما يكون الطلب من النافذة.
+         */
+        if (! $this->wantsEmbed($request)) {
+            session()->forget('amrtm_api_token');
+            session()->regenerate();
+        }
 
         $message = 'تم إرسال طلب تسجيل المكتب بنجاح. سيتم تفعيل حسابك بعد مراجعة الإدارة.';
 
