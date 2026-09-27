@@ -67,11 +67,22 @@ class BackendApi
         $url = self::baseUrl() . $path;
 
         try {
-            $request = Http::timeout(10)->withHeaders(['Accept' => 'application/json']);
+            /*
+             | بناء الطلب داخل دالة قابلة لإعادة التنفيذ: BackendHttp::send قد
+             | يعيد إرسال الطلب بعد حل تحدي aes.js من الاستضافة، والكوكي
+             | يمرّ عبر معامل $cookie.
+             */
+            $isPost = strtoupper($method) === 'POST';
+            $build  = function (string $u, ?string $cookie) use ($isPost, $payload) {
+                $req = Http::timeout(10)->withHeaders(['Accept' => 'application/json']);
+                if ($cookie) {
+                    $req = $req->withHeaders(['Cookie' => $cookie]);
+                }
 
-            $resp = strtoupper($method) === 'POST'
-                ? $request->post($url, $payload)
-                : $request->get($url, $payload);
+                return $isPost ? $req->post($u, $payload) : $req->get($u, $payload);
+            };
+
+            $resp = \App\Support\BackendHttp::send($build, $url);
 
             if (! $resp->successful()) {
                 $status = $resp->status();

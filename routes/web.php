@@ -68,7 +68,30 @@ Route::get('/provider-account/create', function (\Illuminate\Http\Request $reque
 
     return view('update_service.provider-account', compact('mode'));
 })->name('amrtm.provider.account.create');
-Route::get('/provider-account/specialties', fn () => response()->json(['specialties' => []]))->name('amrtm.provider.account.specialties');
+/*
+ | كانت سابقاً stub يعيد قائمة فارغة — وهذا كان سبب عدم ظهور التخصصات
+ | عند اختيار النشاط التجاري في نموذج تسجيل المزود. الآن يمرّر الطلب
+ | إلى الباك اند الحقيقي: /api/v1/provider-account/specialties
+ | (الاستجابة تتضمن success:true + التخصصات مع خدماتها وأسعارها).
+ */
+Route::get('/provider-account/specialties', function (\Illuminate\Http\Request $request) {
+    $query = $request->query();
+    $url   = \App\Support\BackendApi::baseUrl() . '/api/v1/provider-account/specialties'
+        . (empty($query) ? '' : '?' . http_build_query($query));
+
+    $resp = \App\Support\BackendHttp::send(
+        fn (string $u, ?string $cookie) => \Illuminate\Support\Facades\Http::timeout(20)
+            ->withHeaders(array_filter([
+                'Accept' => 'application/json',
+                'Cookie' => $cookie,
+            ]))
+            ->get($u),
+        $url,
+    );
+
+    return response($resp->body(), $resp->status())
+        ->header('Content-Type', $resp->header('Content-Type') ?: 'application/json');
+})->name('amrtm.provider.account.specialties');
 Route::post('/provider-account', fn () => redirect()->route('amrtm.index'))->name('amrtm.provider.account.store');
 
 /* ═══ العقود — إجراءات ═══ */

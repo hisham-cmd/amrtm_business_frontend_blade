@@ -86,19 +86,23 @@
                                 <div style="text-align:left;">إجراءات</div>
                             </div>
                             <div id="contracts-list-body">
-                                @forelse($settlementList as $s)
-                                    @php $st = $contractStatusMap[$s['status'] ?? 'draft'] ?? $contractStatusMap['draft']; @endphp
+                                @forelse($settlementList as $c)
+                                    @php
+                                        $st = $contractStatusMap[$c['status'] ?? 'draft'] ?? $contractStatusMap['draft'];
+                                        // قد تكون كل القيم فارغة عند غياب المكتب أو النوع
+                                        $partyOne = $c['party1_office_name'] ?? $c['party_1_name'] ?? null;
+                                    @endphp
                                     <div class="cat-row contract-row">
-                                        <div class="c-cell cat-nm" data-label="رقم العقد">{{ $s['ref_number'] ?? '—' }}</div>
-                                        <div class="c-cell cat-nm" data-label="نوع العقد">—</div>
-                                        <div class="c-cell cat-nm" data-label="الطرف الأول">{{ $s['office']['name_ar'] ?? '—' }}</div>
-                                        <div class="c-cell cat-nm" data-label="الطرف الثاني">{{ $s['client_name'] ?? '—' }}</div>
-                                        <div class="c-cell contract-price" data-label="سعر الخدمة">{{ number_format($s['amount'] ?? 0, 2) }} ر.س</div>
-                                        <div class="c-cell cat-sub" data-label="تاريخ البداية">{{ $s['created_at'] ? date('d/m/Y', strtotime($s['created_at'])) : '—' }}</div>
-                                        <div class="c-cell cat-sub" data-label="تاريخ النهاية">{{ $s['settled_at'] ? date('d/m/Y', strtotime($s['settled_at'])) : '—' }}</div>
+                                        <div class="c-cell cat-nm" data-label="رقم العقد">{{ $c['number'] ?? '—' }}</div>
+                                        <div class="c-cell cat-nm" data-label="نوع العقد">{{ $c['type_name'] ?? '—' }}</div>
+                                        <div class="c-cell cat-nm" data-label="الطرف الأول">{{ $partyOne ?: '—' }}</div>
+                                        <div class="c-cell cat-nm" data-label="الطرف الثاني">{{ $c['party_name'] ?? '—' }}</div>
+                                        <div class="c-cell contract-price" data-label="سعر الخدمة">{{ number_format((float) ($c['price'] ?? 0), 2) }} ر.س</div>
+                                        <div class="c-cell cat-sub" data-label="تاريخ البداية">{{ !empty($c['start_date']) ? date('d/m/Y', strtotime($c['start_date'])) : '—' }}</div>
+                                        <div class="c-cell cat-sub" data-label="تاريخ النهاية">{{ !empty($c['end_date']) ? date('d/m/Y', strtotime($c['end_date'])) : '—' }}</div>
                                         <div class="c-cell" data-label="الحالة"><span class="req-st {{ $st['cls'] }}">{{ $st['txt'] }}</span></div>
                                         <div class="c-cell c-actions cat-actions">
-                                            <x-ui.button type="button" class="cat-act-btn view" onclick="viewContract({{ $s['id'] }})" title="عرض العقد">عرض</x-ui.button>
+                                            <x-ui.button type="button" class="cat-act-btn view" onclick="viewContract({{ $c['id'] }})" title="عرض العقد">عرض</x-ui.button>
                                         </div>
                                     </div>
                                 @empty

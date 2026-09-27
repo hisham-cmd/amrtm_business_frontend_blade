@@ -16,14 +16,26 @@ class BackendApiWithToken
     public function call(string $method, string $path, array $body = []): \Illuminate\Support\Collection
     {
         try {
-            $client = Http::timeout(10)->withHeaders([
-                'Accept'        => 'application/json',
-                'Authorization' => 'Bearer ' . $this->token,
-            ]);
+            /*
+             | الاستضافة (InfinityFree) تحذف ترويسة Authorization قبل PHP —
+             | يُرسل التوكن في ترويسة مخصصة يفهمها الباك اند أيضاً.
+             | وكل النداءات تمر عبر BackendHttp لفك تحدي aes.js تلقائياً
+             | (بدونه تُستلم صفحة التحدي HTML كأنها استجابة ناجحة — وهذه
+             | كانت سبب فشل صامت في لوحة الأدمن).
+             */
+            $isPost = strtoupper($method) === 'POST';
+            $build  = function (string $u, ?string $cookie) use ($isPost, $body) {
+                $req = Http::timeout(10)->withHeaders(array_filter([
+                    'Accept'         => 'application/json',
+                    'Authorization'  => 'Bearer ' . $this->token,
+                    'X-AMRTM-TOKEN'  => $this->token,
+                    'Cookie'         => $cookie,
+                ]));
 
-            $resp = strtoupper($method) === 'POST'
-                ? $client->post(BackendApi::baseUrl() . $path, $body)
-                : $client->get(BackendApi::baseUrl() . $path);
+                return $isPost ? $req->post($u, $body) : $req->get($u);
+            };
+
+            $resp = \App\Support\BackendHttp::send($build, BackendApi::baseUrl() . $path);
 
             return $this->wrap($resp, $method, $path);
         } catch (\Throwable $e) {
@@ -39,8 +51,9 @@ class BackendApiWithToken
     {
         try {
             $client = Http::timeout(60)->withHeaders([
-                'Accept'        => 'application/json',
-                'Authorization' => 'Bearer ' . $this->token,
+                'Accept'         => 'application/json',
+                'Authorization'  => 'Bearer ' . $this->token,
+                'X-AMRTM-TOKEN'  => $this->token,
             ]);
 
             $payload = [];

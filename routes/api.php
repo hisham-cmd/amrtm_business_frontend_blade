@@ -99,23 +99,6 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
 
     $method  = strtolower($request->method());
     $isMultipart = str_contains((string) $request->header('Content-Type'), 'multipart');
-    $multipart = $isMultipart ? amrtm_proxy_multipart($request) : [];
-
-    // تحضير request الوكيل
-    //
-    // مهم: لا نثبّت Content-Type هنا إطلاقاً. لو مرّرنا
-    // 'Content-Type: application/json' header ثابت فإن asMultipart()
-    // سيتجاهله ويبقى يرسل JSON — فتفشل كل عمليات رفع الملفات.
-    // Laravel/guzzle يضبط الـ boundary الصحيح تلقائياً مع asMultipart().
-    $builder = Http::timeout(60)
-        ->withHeaders([
-            'Accept'           => 'application/json',
-            'X-Requested-With' => 'XMLHttpRequest',
-        ]);
-
-    if ($token) {
-        $builder = $builder->withHeaders(['Authorization' => 'Bearer ' . $token]);
-    }
 
     // إضافة بادئة v1 إن لم تكن موجودة (الباك اند يخدم الـ API تحت /api/v1)
     $apiPath = ($path === 'v1' || str_starts_with($path, 'v1/')) ? $path : 'v1/' . $path;
@@ -126,25 +109,61 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
         $url .= '?' . http_build_query($query);
     }
 
-    $body = $isMultipart ? [] : ($request->json()->all() ?: $request->all());
+    /*
+     | بناء الطلب داخل دالة قابلة لإعادة التنفيذ.
+     | مهم: الملفات المرفوعة (multipart) تعيش كـ fopen streams تُستهلك من
+     | أول إرسال — لذا تُبنى من جديد عند كل محاولة (مثل إعادة الطلب بعد
+     | حل تحدي aes.js في BackendHttp::send).
+     |
+     | مهم أيضاً: لا نثبّت Content-Type هنا إطلاقاً. لو مرّرنا
+     | 'Content-Type: application/json' header ثابت فإن asMultipart()
+     | سيتجاهله ويبقى يرسل JSON — فتفشل كل عمليات رفع الملفات.
+     | Laravel/guzzle يضبط الـ boundary الصحيح تلقائياً مع asMultipart().
+     */
+    $build = function (string $u, ?string $cookie) use ($request, $method, $token, $isMultipart) {
+        $req = Http::timeout(60)
+            ->withHeaders([
+                'Accept'           => 'application/json',
+                'X-Requested-With' => 'XMLHttpRequest',
+            ]);
 
-    try {
+        if ($token) {
+            /*
+             | الاستضافة (InfinityFree) تحذف ترويسة Authorization قبل PHP،
+             | لذا يُرسل التوكن أيضاً في ترويسة مخصصة يفهمها الباك اند.
+             */
+            $req = $req->withHeaders([
+                'Authorization'  => 'Bearer ' . $token,
+                'X-AMRTM-TOKEN'  => $token,
+            ]);
+        }
+        if ($cookie) {
+            $req = $req->withHeaders(['Cookie' => $cookie]);
+        }
+
+        $multipart = $isMultipart ? amrtm_proxy_multipart($request) : [];
+        $body      = $isMultipart ? [] : ($request->json()->all() ?: $request->all());
+
         if ($method === 'get' || $method === 'delete') {
-            $resp = $builder->$method($url);
-        } elseif ($method === 'put' || $method === 'patch') {
+            return $req->$method($u);
+        }
+        if ($method === 'put' || $method === 'patch') {
             // PUT مع ملفات (تعديل سلايد + استبدال الصورة) يمر كـ multipart أيضاً
             if ($isMultipart) {
-                $resp = $builder->asMultipart()->put($url, $multipart);
-            } else {
-                $resp = $builder->$method($url, $body);
+                return $req->asMultipart()->put($u, $multipart);
             }
-        } elseif ($isMultipart) { // post multipart (رفع ملفات)
-            $resp = $multipart
-                ? $builder->asMultipart()->post($url, $multipart)
-                : $builder->post($url, $body);
-        } else { // post JSON
-            $resp = $builder->post($url, $body);
+            return $req->$method($u, $body);
         }
+        if ($isMultipart) { // post multipart (رفع ملفات)
+            return $multipart
+                ? $req->asMultipart()->post($u, $multipart)
+                : $req->post($u, $body);
+        }
+        return $req->post($u, $body); // post JSON
+    };
+
+    try {
+        $resp = \App\Support\BackendHttp::send($build, $url);
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::warning('Proxy fetch failed: ' . $e->getMessage());
 

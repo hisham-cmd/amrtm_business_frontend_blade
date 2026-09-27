@@ -677,17 +677,17 @@ async function init() {
             const last = reqMeta.last_page || 1;
             let html = '';
             if (cur > 1) html +=
-                `<x-ui.button type="button" onclick="loadAdminRequests(${cur-1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">${lang==='ar'?'السابق':'Prev'}</x-ui.button>`;
+                `<button type="button" onclick="loadAdminRequests(${cur-1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">${lang==='ar'?'السابق':'Prev'}</button>`;
             for (let i = Math.max(1, cur - 2); i <= Math.min(last, cur + 2); i++) {
                 const on = i === cur;
                 const cls = on
                     ? 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-600 bg-emerald-600 text-white'
                     : 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent text-slate-700 hover:bg-emerald-600/5';
                 html +=
-                    `<x-ui.button type="button" onclick="loadAdminRequests(${i})" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</x-ui.button>`;
+                    `<button type="button" onclick="loadAdminRequests(${i})" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</button>`;
             }
             if (cur < last) html +=
-                `<x-ui.button type="button" onclick="loadAdminRequests(${cur+1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">${lang==='ar'?'التالي':'Next'}</x-ui.button>`;
+                `<button type="button" onclick="loadAdminRequests(${cur+1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">${lang==='ar'?'التالي':'Next'}</button>`;
             pag.innerHTML = html;
             document.getElementById('req-list')?.insertAdjacentElement('afterend', pag);
         }
@@ -710,7 +710,7 @@ async function init() {
 
             const id = req.id || i;
             const btn = (cls, onClick, icon, label) =>
-                `<x-ui.button type="button" class="sa ${cls} focus:ring-0!" onclick="${onClick}"><i class="ti ${icon}"></i>${label}</x-ui.button>`;
+                `<button type="button" class="sa ${cls} focus:ring-0!" onclick="${onClick}"><i class="ti ${icon}"></i>${label}</button>`;
 
             /* طلب مغلق: شارة النتيجة فقط، لا أزرار حالة */
             if (isClosed) {
@@ -787,7 +787,7 @@ async function init() {
         <!-- Set estimated time -->
         <div class="time-row">
           ${xuiInput(`id="ti-${i}" value="${req.estimated_completion||''}" placeholder="${t.timePh}" class="time-inp focus:ring-0!"`)}
-          <x-ui.button type="button" class="time-btn focus:ring-0!" onclick="setTime(${i},'${req.id||req.ref_number||i}')">${t.timeSave}</x-ui.button>
+          <button type="button" class="time-btn focus:ring-0!" onclick="setTime(${i},'${req.id||req.ref_number||i}')">${t.timeSave}</button>
         </div>
         <!-- Status actions (منطقي حسب رحلة الطلب والصلاحيات) -->
         <div class="st-actions">
@@ -796,10 +796,10 @@ async function init() {
         <!-- Fulfillment decision area (internal / manual assign / pool broadcast) -->
         <div class="assign-area" id="aa-${i}" style="${needFulfill ? '' : 'display:none'}">
           <div class="assign-toggle">
-            <x-ui.button type="button" class="at at-yes focus:ring-0!" onclick="takeInternal('${req.id||i}')"><i class="ti ti-building"></i>${lang==='ar'?'إنجاز من المنصة':'Handle Internally'}</x-ui.button>
+            <button type="button" class="at at-yes focus:ring-0!" onclick="takeInternal('${req.id||i}')"><i class="ti ti-building"></i>${lang==='ar'?'إنجاز من المنصة':'Handle Internally'}</button>
             ${isPooled ? `
-            <x-ui.button type="button" class="at at-off focus:ring-0!" onclick="togBroadcastPick(${i},'${req.id||i}')"><i class="ti ti-broadcast"></i>${lang==='ar'?'بث لشبكة المكاتب':'Broadcast to Offices'}</x-ui.button>` : `
-            <x-ui.button type="button" class="at at-off focus:ring-0!" onclick="togOfficePick(${i},'${req.id||i}')"><i class="ti ti-building-bank"></i>${lang==='ar'?'إسناد لمكتب مساند':'Assign to Office'}</x-ui.button>`}
+            <button type="button" class="at at-off focus:ring-0!" onclick="togBroadcastPick(${i},'${req.id||i}')"><i class="ti ti-broadcast"></i>${lang==='ar'?'بث لشبكة المكاتب':'Broadcast to Offices'}</button>` : `
+            <button type="button" class="at at-off focus:ring-0!" onclick="togOfficePick(${i},'${req.id||i}')"><i class="ti ti-building-bank"></i>${lang==='ar'?'إسناد لمكتب مساند':'Assign to Office'}</button>`}
           </div>
           ${isPooled ? `
           <div class="assign-offices" id="bo-${i}" style="display:none">
@@ -809,7 +809,7 @@ async function init() {
           <div class="assign-offices" id="ao-${i}" style="display:none">
             <div class="assign-offices-head">
               <p class="assign-hint">${lang==='ar'?'اختر المكتب المساند:':'Select supporting office:'}</p>
-              <x-ui.button type="button" class="of-all-btn focus:ring-0!" onclick="assignToAllOffices('${req.id||i}')"><i class="ti ti-broadcast"></i>${lang==='ar'?'إسناد / بث لكل المكاتب':'Assign to All'}</x-ui.button>
+              <button type="button" class="of-all-btn focus:ring-0!" onclick="assignToAllOffices('${req.id||i}')"><i class="ti ti-broadcast"></i>${lang==='ar'?'إسناد / بث لكل المكاتب':'Assign to All'}</button>
             </div>
             <!-- فلترة القوائم المنسدلة والبحث السريع -->
             <div class="of-filters-grid">
@@ -832,9 +832,9 @@ async function init() {
                 ${xuiSelect(`<option value="">${lang==='ar'?'-- اختر مكتباً من القائمة للإسناد المباشر --':'-- Select office from dropdown to assign --'}</option>`, `id="of-select-${i}"`)}
                 <i class="ti ti-chevron-down"></i>
               </div>
-              <x-ui.button type="button" class="of-quick-assign-btn focus:ring-0!" onclick="doQuickAssign(${i}, '${req.id||i}')">
+              <button type="button" class="of-quick-assign-btn focus:ring-0!" onclick="doQuickAssign(${i}, '${req.id||i}')">
                 <i class="ti ti-user-check"></i>${lang==='ar'?'إسناد للمكتب':'Assign'}
-              </x-ui.button>
+              </button>
             </div>
             <!-- بطاقات المكاتب المصفاة -->
             <div class="office-list" id="ol-${i}"></div>
@@ -847,17 +847,17 @@ async function init() {
         <!-- Reject area -->
         <div class="rej-area" id="ra-${i}">
           ${xuiTextarea('', `id="rt-${i}" placeholder="${t.rejPlh}" rows="2" class="focus:ring-0!"`)}
-          <x-ui.button type="button" class="rej-send focus:ring-0!" onclick="sendRej(${i},'${req.id||i}')"><i class="ti ti-send"></i>${t.rejSend}</x-ui.button>
+          <button type="button" class="rej-send focus:ring-0!" onclick="sendRej(${i},'${req.id||i}')"><i class="ti ti-send"></i>${t.rejSend}</button>
         </div>
         <!-- Send Note area -->
         <div class="note-area" id="na-${i}">
           ${xuiTextarea('', `id="nt-${i}" placeholder="${lang==='ar'?'اكتب ملاحظة للمستخدم...':'Write a note to the user...'}" rows="2" class="focus:ring-0!"`)}
-          <x-ui.button type="button" class="note-send focus:ring-0!" onclick="doSendNote(${i},'${req.id||i}')"><i class="ti ti-send"></i>${lang==='ar'?'إرسال الملاحظة':'Send Note'}</x-ui.button>
+          <button type="button" class="note-send focus:ring-0!" onclick="doSendNote(${i},'${req.id||i}')"><i class="ti ti-send"></i>${lang==='ar'?'إرسال الملاحظة':'Send Note'}</button>
         </div>
         <!-- Request Info area -->
         <div class="info-area" id="ia-${i}">
           ${xuiTextarea('', `id="it-${i}" placeholder="${lang==='ar'?'اكتب ما تحتاجه من معلومات...':'Describe the information needed...'}" rows="2" class="focus:ring-0!"`)}
-          <x-ui.button type="button" class="info-send focus:ring-0!" onclick="doRequestInfo(${i},'${req.id||i}')"><i class="ti ti-send"></i>${lang==='ar'?'إرسال طلب المعلومات':'Send Info Request'}</x-ui.button>
+          <button type="button" class="info-send focus:ring-0!" onclick="doRequestInfo(${i},'${req.id||i}')"><i class="ti ti-send"></i>${lang==='ar'?'إرسال طلب المعلومات':'Send Info Request'}</button>
         </div>
         <!-- Log -->
         ${logs.length?`<div class="req-log-ttl"><i class="ti ti-history text-emerald-500"></i>${t.logTtl}</div>
@@ -986,7 +986,7 @@ async function init() {
                             </div>
                         </div>
                     </div>
-                    <x-ui.button type="button" class="of-pick focus:ring-0!" onclick="doAssign(${o.id}, '${reqId}')">${lang === 'ar' ? 'إسناد' : 'Assign'}</x-ui.button>
+                    <button type="button" class="of-pick focus:ring-0!" onclick="doAssign(${o.id}, '${reqId}')">${lang === 'ar' ? 'إسناد' : 'Assign'}</button>
                 </div>`).join('');
         }
 
@@ -1117,7 +1117,7 @@ async function init() {
                     }
                     listEl.innerHTML = offices.map(o => `
                         <div class="of-item bc-item" onclick="togBc('bc-${i}-${o.id}')">
-                            <x-ui.checkbox class="bc-chk" id="bc-${i}-${o.id}" value="${o.id}" name="bc-${i}[]" onclick="event.stopPropagation()" />
+                            <input type="checkbox" class="bc-chk" id="bc-${i}-${o.id}" value="${o.id}" name="bc-${i}[]" onclick="event.stopPropagation()">
                             <div class="of-info" style="flex:1">
                                 <i class="ti ti-building"></i>
                                 <span>${lang === 'ar' ? o.name_ar : o.name_en}</span>
@@ -1126,7 +1126,7 @@ async function init() {
                             </div>
                         </div>`).join('') +
                         `<div class="bc-actions">
-                            <x-ui.button type="button" class="of-pick focus:ring-0!" onclick="doBroadcast(${i},'${reqId}')">${lang === 'ar' ? 'بث للمكاتب المحددة' : 'Broadcast to Selected'}</x-ui.button>
+                            <button type="button" class="of-pick focus:ring-0!" onclick="doBroadcast(${i},'${reqId}')">${lang === 'ar' ? 'بث للمكاتب المحددة' : 'Broadcast to Selected'}</button>
                         </div>`;
                 } catch (e) {
                     listEl.innerHTML = '<div class="of-empty">' + (lang === 'ar' ? 'تعذر تحميل المكاتب المؤهلة' : 'Failed to load eligible offices') + '</div>';
@@ -1209,7 +1209,7 @@ async function init() {
       <div class="flex items-center gap-3">
         ${xuiInput(`type="number" id="pi-${s.id}" value="${s.price||0}" min="0" class="flex-1! h-10 rounded-lg border border-emerald-900/10! bg-slate-50! px-3! text-[13.5px]! font-bold! text-slate-900! focus:border-emerald-600! focus:ring-0!"`)}
         <span class="shrink-0 text-xs font-medium text-slate-500">${t.sar}</span>
-        <x-ui.button type="button" class="h-10 rounded-lg bg-emerald-600! px-3.5! text-[13px]! font-bold! text-white! transition hover:bg-emerald-700! focus:ring-0!" onclick="savePrice(${s.id},'pi-${s.id}')">${lang==='ar'?'حفظ':'Save'}</x-ui.button>
+        <button type="button" class="h-10 rounded-lg bg-emerald-600! px-3.5! text-[13px]! font-bold! text-white! transition hover:bg-emerald-700! focus:ring-0!" onclick="savePrice(${s.id},'pi-${s.id}')">${lang==='ar'?'حفظ':'Save'}</button>
       </div>
     </div>`;
             }).join('');
@@ -1607,23 +1607,23 @@ let _catData = [],
       <div><span class="cat-status-dot ${c.is_active?'active':'inactive'}"></span></div>
     <div class="cat-actions">
 
-    <x-ui.button type="button"
+    <button type="button"
         class="cat-act-btn edit focus:ring-0!"
         onclick="editCat(${c.id})">
         تعديل
-    </x-ui.button>
+    </button>
 
-    <x-ui.button type="button"
+    <button type="button"
         class="cat-act-btn tog ${c.is_active?'':'off'} focus:ring-0!"
         onclick="toggleCat(${c.id},${c.is_active?1:0})">
         ${c.is_active?'نشط':'متوقف'}
-    </x-ui.button>
+    </button>
 
-    <x-ui.button type="button"
+    <button type="button"
         class="cat-act-btn del focus:ring-0!"
         onclick="deleteCat(${c.id})">
         <i class="ti ti-trash"></i>
-    </x-ui.button>
+    </button>
 
 </div>
     </div>`).join('');
@@ -1818,21 +1818,21 @@ let _catData = [],
 
       <div class="cat-actions">
 
-        <x-ui.button type="button" class="cat-act-btn tog ${e.is_active ? '' : 'off'} focus:ring-0!"
+        <button type="button" class="cat-act-btn tog ${e.is_active ? '' : 'off'} focus:ring-0!"
                 onclick="toggleEnt(${e.id},${e.is_active ? 1 : 0})">
           ${e.is_active ? 'نشط' : 'متوقف'}
-        </x-ui.button>
+        </button>
 
 
-    <x-ui.button type="button" class="cat-act-btn focus:ring-0!"
+    <button type="button" class="cat-act-btn focus:ring-0!"
             onclick="editEntity(${e.id})">
         تعديل
-    </x-ui.button>
+    </button>
 
-        <x-ui.button type="button" class="cat-act-btn del focus:ring-0!"
+        <button type="button" class="cat-act-btn del focus:ring-0!"
                 onclick="deleteEnt(${e.id})">
           <i class="ti ti-trash"></i>
-        </x-ui.button>
+        </button>
 
       </div>
 
@@ -2181,21 +2181,21 @@ let _catData = [],
 
     <div class="cat-actions">
 
-    <x-ui.button type="button" class="cat-act-btn focus:ring-0!"
+    <button type="button" class="cat-act-btn focus:ring-0!"
             onclick="editService(${s.id})">
         <i class="ti ti-edit"></i>
         تعديل
-    </x-ui.button>
+    </button>
 
-    <x-ui.button type="button" class="cat-act-btn tog ${s.is_active ? '' : 'off'} focus:ring-0!"
+    <button type="button" class="cat-act-btn tog ${s.is_active ? '' : 'off'} focus:ring-0!"
             onclick="toggleSvc(${s.id},${s.is_active ? 1 : 0})">
         ${s.is_active ? 'نشط' : 'متوقف'}
-    </x-ui.button>
+    </button>
 
-    <x-ui.button type="button" class="cat-act-btn del focus:ring-0!"
+    <button type="button" class="cat-act-btn del focus:ring-0!"
             onclick="deleteSvc(${s.id})">
         <i class="ti ti-trash"></i>
-    </x-ui.button>
+    </button>
 
 </div>
 
@@ -2692,46 +2692,41 @@ function serviceOptionsText(options) {
       </div>
       <div class="off-card-actions">
 
-  <x-ui.button type="button"
+  <button type="button"
     class="cat-act-btn focus:ring-0!"
     style="background:rgba(2,119,189,.08);color:#0277BD;border-color:rgba(2,119,189,.2);"
-    onclick="showOfficeDetails(${o.id})"
-  >
+    onclick="showOfficeDetails(${o.id})">
     <i class="ti ti-eye"></i>
     عرض البيانات
-  </x-ui.button>
+  </button>
 
-  <x-ui.button type="button"
+  <button type="button"
     class="cat-act-btn focus:ring-0!"
     style="background:rgba(139,92,246,.08);color:#8B5CF6;border-color:rgba(139,92,246,.2);"
-    onclick="window.location.href = window.AMRTM_ROUTES.officeEdit.replace('__ID__', ${o.id})"
-  >
+    onclick="window.location.href = window.AMRTM_ROUTES.officeEdit.replace('__ID__', ${o.id})">
     <i class="ti ti-pencil"></i>
     تعديل
-  </x-ui.button>
+  </button>
 
-  ${!isVerified ? `<x-ui.button type="button"
+  ${!isVerified ? `<button type="button"
                                                                                                     class="cat-act-btn focus:ring-0!"
                                                                                                     style="background:rgba(4,120,87,.08);color:var(--green);border-color:rgba(4,120,87,.2);"
-                                                                                                    onclick="doVerifyOffice(${o.id})"
-                                                                                                  >
+                                                                                                    onclick="doVerifyOffice(${o.id})">
                                                                                                     <i class="ti ti-circle-check"></i>
                                                                                                     اعتماد
-                                                                                                  </x-ui.button>` : ''}
+                                                                                                  </button>` : ''}
 
-  <x-ui.button type="button"
+  <button type="button"
     class="cat-act-btn tog${!isActive ? ' off' : ''} focus:ring-0!"
-    onclick="doToggleOffice(${o.id})"
-  >
+    onclick="doToggleOffice(${o.id})">
     ${isActive ? 'إيقاف' : 'تفعيل'}
-  </x-ui.button>
+  </button>
 
-  <x-ui.button type="button"
+  <button type="button"
     class="cat-act-btn del focus:ring-0!"
-    onclick="doDeleteOffice(${o.id})"
-  >
+    onclick="doDeleteOffice(${o.id})">
     <i class="ti ti-trash"></i>
-  </x-ui.button>
+  </button>
 
 </div>
 
@@ -2898,12 +2893,11 @@ function serviceOptionsText(options) {
                     </div>
                 </div>
 
-                <x-ui.button type="button"
+                <button type="button"
                     class="office-details-close focus:ring-0!"
-                    onclick="closeOfficeDetailsModal()"
-                >
+                    onclick="closeOfficeDetailsModal()">
                     <i class="ti ti-x"></i>
-                </x-ui.button>
+                </button>
 
             </div>
 
@@ -2921,47 +2915,47 @@ function serviceOptionsText(options) {
                     <div class="office-detail-grid">
 
                         <div>
-                            <x-ui.label class="font-normal!">اسم المكتب</x-ui.label>
+                            <label class="font-normal!">اسم المكتب</label>
                             <span>${o.name_ar || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الاسم بالإنجليزية</x-ui.label>
+                            <label class="font-normal!">الاسم بالإنجليزية</label>
                             <span>${o.name_en || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">نوع المكتب</x-ui.label>
+                            <label class="font-normal!">نوع المكتب</label>
                             <span>${o.type_label_ar || o.type || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الحالة</x-ui.label>
+                            <label class="font-normal!">الحالة</label>
                             <span>${status}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الهاتف</x-ui.label>
+                            <label class="font-normal!">الهاتف</label>
                             <span>${o.phone || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">البريد الإلكتروني</x-ui.label>
+                            <label class="font-normal!">البريد الإلكتروني</label>
                             <span>${o.email || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">المدينة</x-ui.label>
+                            <label class="font-normal!">المدينة</label>
                             <span>${o.city || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">السجل التجاري</x-ui.label>
+                            <label class="font-normal!">السجل التجاري</label>
                             <span>${o.cr_number || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">عمولة المنصة</x-ui.label>
+                            <label class="font-normal!">عمولة المنصة</label>
                             <span>${o.commission_rate ?? 0}%</span>
                         </div>
 
@@ -2980,62 +2974,62 @@ function serviceOptionsText(options) {
                     <div class="office-detail-grid">
 
                         <div>
-                            <x-ui.label class="font-normal!">رقم الترخيص</x-ui.label>
+                            <label class="font-normal!">رقم الترخيص</label>
                             <span>${p.license_number || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">رقم السجل التجاري</x-ui.label>
+                            <label class="font-normal!">رقم السجل التجاري</label>
                             <span>${p.cr_number || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الجوال</x-ui.label>
+                            <label class="font-normal!">الجوال</label>
                             <span>${p.mobile || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الدولة</x-ui.label>
+                            <label class="font-normal!">الدولة</label>
                             <span>${p.country || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">المنطقة</x-ui.label>
+                            <label class="font-normal!">المنطقة</label>
                             <span>${p.governorate || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">المدينة</x-ui.label>
+                            <label class="font-normal!">المدينة</label>
                             <span>${p.city || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الحي</x-ui.label>
+                            <label class="font-normal!">الحي</label>
                             <span>${p.district || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">الشارع</x-ui.label>
+                            <label class="font-normal!">الشارع</label>
                             <span>${p.street || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">رقم المبنى</x-ui.label>
+                            <label class="font-normal!">رقم المبنى</label>
                             <span>${p.building_number || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">رقم المكتب</x-ui.label>
+                            <label class="font-normal!">رقم المكتب</label>
                             <span>${p.office_number || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">كود المكتب</x-ui.label>
+                            <label class="font-normal!">كود المكتب</label>
                             <span>${p.office_code || '—'}</span>
                         </div>
 
                         <div>
-                            <x-ui.label class="font-normal!">حالة الملف</x-ui.label>
+                            <label class="font-normal!">حالة الملف</label>
                             <span>
                                 ${p.profile_completed ? 'مكتمل' : 'غير مكتمل'}
                             </span>
@@ -3090,12 +3084,11 @@ function serviceOptionsText(options) {
 
             <div class="office-details-footer">
 
-                <x-ui.button type="button"
+                <button type="button"
                     class="btn-pri"
-                    onclick="closeOfficeDetailsModal()"
-                >
+                    onclick="closeOfficeDetailsModal()">
                     إغلاق
-                </x-ui.button>
+                </button>
 
             </div>
 
@@ -3288,10 +3281,10 @@ function serviceOptionsText(options) {
                     Object.entries(PERMS_META).map(([key, meta]) => `
           <div class="perm-row">
             <div class="perm-lbl">${meta.ar}<small>${meta.desc_ar}</small></div>
-            <x-ui.label class="perm-toggle mb-0!">
+            <label class="perm-toggle mb-0!">
               ${AMRTM_UI.checkbox({ checked: perms.includes(key), onchange: "togglePerm(" + a.id + ", '" + key + "', this.checked)" })}
               <span class="perm-slider"></span>
-            </x-ui.label>
+            </label>
           </div>`).join('');
 
                 return `<div class="admin-card" id="admin-card-${a.id}">
@@ -3306,7 +3299,7 @@ function serviceOptionsText(options) {
             ${isSupervisor ? 'سوبرفايزر' : 'مدير'}
           </span>
           ${!isActive ? '<span style="padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;background:rgba(220,38,38,.1);color:var(--red);">معطل</span>' : ''}
-          ${!isSupervisor ? `<x-ui.button type="button" class="cat-act-btn tog${!isActive?' off':''} focus:ring-0!" onclick="doToggleAdmin(${a.id})">${isActive ? 'تعطيل' : 'تفعيل'}</x-ui.button>` : ''}
+          ${!isSupervisor ? `<button type="button" class="cat-act-btn tog${!isActive?' off':''} focus:ring-0!" onclick="doToggleAdmin(${a.id})">${isActive ? 'تعطيل' : 'تفعيل'}</button>` : ''}
         </div>
       </div>
       ${permsHtml}
@@ -3681,7 +3674,7 @@ function serviceOptionsText(options) {
       <div class="c-cell cat-sub" data-label="تاريخ النهاية">${fmtDate(c.end)}</div>
       <div class="c-cell" data-label="الحالة"><span class="req-st ${st.cls}">${st.txt}</span></div>
       <div class="c-cell c-actions cat-actions">
-        <x-ui.button type="button" class="cat-act-btn view focus:ring-0!" onclick="viewContract(${c.id})" title="عرض العقد">عرض</x-ui.button>
+        <button type="button" class="cat-act-btn view" onclick="viewContract(${c.id})" title="عرض العقد">عرض</button>
       </div>
     </div>`;
             }).join('');
@@ -3830,7 +3823,7 @@ function serviceOptionsText(options) {
                         <div class="cl-name">${escJs(c.name)}</div>
                         ${c.desc ? `<div class="cl-desc">${escJs(c.desc)}</div>` : ''}
                     </div>
-                    <x-ui.button type="button" class="cat-act-btn del focus:ring-0!" onclick="removeCustomClause(${i})"><i class="ti ti-trash"></i></x-ui.button>
+                    <button type="button" class="cat-act-btn del focus:ring-0!" onclick="removeCustomClause(${i})"><i class="ti ti-trash"></i></button>
                 </div>`
             ).join('');
         }
@@ -3924,8 +3917,8 @@ function serviceOptionsText(options) {
           <div class="req-nm">${t.name}</div>
           <div class="req-meta"><span>${count} بند</span>${pr ? `<span style="color:var(--green);font-weight:700;">${pr}</span>` : ''}</div>
         </div>
-        <x-ui.button type="button" class="cat-act-btn edit focus:ring-0!" onclick="event.stopPropagation();showContractTypeForm('${escJs(t.name)}')" title="تعديل اسم النوع وسعره">تعديل</x-ui.button>
-        <x-ui.button type="button" class="cat-act-btn del focus:ring-0!" onclick="event.stopPropagation();deleteContractType('${escJs(t.name)}')" title="حذف النوع"><i class="ti ti-trash"></i></x-ui.button>
+        <button type="button" class="cat-act-btn edit focus:ring-0!" onclick="event.stopPropagation();showContractTypeForm('${escJs(t.name)}')" title="تعديل اسم النوع وسعره">تعديل</button>
+        <button type="button" class="cat-act-btn del focus:ring-0!" onclick="event.stopPropagation();deleteContractType('${escJs(t.name)}')" title="حذف النوع"><i class="ti ti-trash"></i></button>
         <i class="ti ti-chevron-left" style="color:var(--t4);font-size:15px;"></i>
       </div>
     </div>`;
@@ -4076,12 +4069,12 @@ function serviceOptionsText(options) {
 
             el.innerHTML = clauses.map((c, i) => `
     <div class="cat-row clause-row">
-      <div class="c-check"><x-ui.checkbox id="clause-${i}" onchange="syncClauseCheckAll()" class="clause-check focus:ring-0!" data-idx="${i}" /></div>
+      <div class="c-check"><input type="checkbox" id="clause-${i}" onchange="syncClauseCheckAll()" class="clause-check focus:ring-0!" data-idx="${i}"></div>
       <div class="c-name cat-nm" data-label="البند">${c.name}</div>
       <div class="c-desc cat-sub" data-label="الوصف">${c.desc}</div>
       <div class="c-actions cat-actions">
-        <x-ui.button type="button" class="cat-act-btn edit focus:ring-0!" onclick="showClauseForm(${i})"><i class="ti ti-edit"></i></x-ui.button>
-        <x-ui.button type="button" class="cat-act-btn del focus:ring-0!" onclick="removeClause(${i})"><i class="ti ti-trash"></i></x-ui.button>
+        <button type="button" class="cat-act-btn edit focus:ring-0!" onclick="showClauseForm(${i})"><i class="ti ti-edit"></i></button>
+        <button type="button" class="cat-act-btn del focus:ring-0!" onclick="removeClause(${i})"><i class="ti ti-trash"></i></button>
       </div>
     </div>`).join('');
 
@@ -4368,8 +4361,8 @@ function serviceOptionsText(options) {
         <div style="font-size:10px;color:var(--t3);text-align:center;">ر.س</div>
       </div>
       <div class="usr-actions">
-        <x-ui.button type="button" class="cat-act-btn focus:ring-0!" style="background:rgba(5,150,105,.08);color:var(--pri);border-color:var(--b1);" onclick="showBalanceModal(${u.id},'${(u.name||'').replace(/'/g,'')}',${ bal })"><i class="ti ti-wallet"></i></x-ui.button>
-        <x-ui.button type="button" class="cat-act-btn tog${!isActive?' off':''} focus:ring-0!" onclick="doToggleUser(${u.id})">${isActive?'حظر':'تفعيل'}</x-ui.button>
+        <button type="button" class="cat-act-btn focus:ring-0!" style="background:rgba(5,150,105,.08);color:var(--pri);border-color:var(--b1);" onclick="showBalanceModal(${u.id},'${(u.name||'').replace(/'/g,'')}',${ bal })"><i class="ti ti-wallet"></i></button>
+        <button type="button" class="cat-act-btn tog${!isActive?' off':''} focus:ring-0!" onclick="doToggleUser(${u.id})">${isActive?'حظر':'تفعيل'}</button>
       </div>
     </div>`;
             }).join('');
@@ -4386,14 +4379,14 @@ function serviceOptionsText(options) {
                 last = _usrMeta.last_page || 1;
             let html = '';
             if (cur > 1) html +=
-                `<x-ui.button type="button" onclick="_usrPage=${cur-1};loadUsers()" class="focus:ring-0!" style="height:36px;padding:0 12px;border-radius:8px;border:1.5px solid var(--b1);background:transparent;color:var(--t2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">السابق</x-ui.button>`;
+                `<button type="button" onclick="_usrPage=${cur-1};loadUsers()" class="focus:ring-0!" style="height:36px;padding:0 12px;border-radius:8px;border:1.5px solid var(--b1);background:transparent;color:var(--t2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">السابق</button>`;
             for (let i = Math.max(1, cur - 2); i <= Math.min(last, cur + 2); i++) {
                 const on = i === cur;
                 html +=
-                    `<x-ui.button type="button" onclick="_usrPage=${i};loadUsers()" class="focus:ring-0!" style="width:36px;height:36px;border-radius:8px;border:1.5px solid ${on?'var(--pri)':'var(--b1)'};background:${on?'var(--pri)':'transparent'};color:${on?'#fff':'var(--t2)'};font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">${i}</x-ui.button>`;
+                    `<button type="button" onclick="_usrPage=${i};loadUsers()" class="focus:ring-0!" style="width:36px;height:36px;border-radius:8px;border:1.5px solid ${on?'var(--pri)':'var(--b1)'};background:${on?'var(--pri)':'transparent'};color:${on?'#fff':'var(--t2)'};font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">${i}</button>`;
             }
             if (cur < last) html +=
-                `<x-ui.button type="button" onclick="_usrPage=${cur+1};loadUsers()" class="focus:ring-0!" style="height:36px;padding:0 12px;border-radius:8px;border:1.5px solid var(--b1);background:transparent;color:var(--t2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">التالي</x-ui.button>`;
+                `<button type="button" onclick="_usrPage=${cur+1};loadUsers()" class="focus:ring-0!" style="height:36px;padding:0 12px;border-radius:8px;border:1.5px solid var(--b1);background:transparent;color:var(--t2);font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">التالي</button>`;
             pag.innerHTML = html;
             document.getElementById('usr-list')?.insertAdjacentElement('afterend', pag);
         }
@@ -4714,17 +4707,17 @@ function serviceOptionsText(options) {
                 last = meta.last_page || 1;
             let html = '';
             if (cur > 1) html +=
-                `<x-ui.button type="button" onclick="_logPage=${cur-1};loadLogs()" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">السابق</x-ui.button>`;
+                `<button type="button" onclick="_logPage=${cur-1};loadLogs()" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">السابق</button>`;
             for (let i = Math.max(1, cur - 2); i <= Math.min(last, cur + 2); i++) {
                 const on = i === cur;
                 const cls = on
                     ? 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-600 bg-emerald-600 text-white'
                     : 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent text-slate-700 hover:bg-emerald-600/5';
                 html +=
-                    `<x-ui.button type="button" onclick="_logPage=${i};loadLogs()" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</x-ui.button>`;
+                    `<button type="button" onclick="_logPage=${i};loadLogs()" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</button>`;
             }
             if (cur < last) html +=
-                `<x-ui.button type="button" onclick="_logPage=${cur+1};loadLogs()" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">التالي</x-ui.button>`;
+                `<button type="button" onclick="_logPage=${cur+1};loadLogs()" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">التالي</button>`;
             pag.innerHTML = html;
             document.getElementById('log-list')?.insertAdjacentElement('afterend', pag);
         }
@@ -4941,17 +4934,17 @@ function serviceOptionsText(options) {
             let html =
                 `<span class="text-xs text-slate-500">صفحة ${cur} من ${last}</span><div class="flex flex-wrap gap-2">`;
             if (cur > 1) html +=
-                `<x-ui.button type="button" onclick="loadAdminFinance(${cur - 1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">السابق</x-ui.button>`;
+                `<button type="button" onclick="loadAdminFinance(${cur - 1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">السابق</button>`;
             for (let i = Math.max(1, cur - 2); i <= Math.min(last, cur + 2); i++) {
                 const on = i === cur;
                 const cls = on
                     ? 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-600 bg-emerald-600 text-white'
                     : 'h-9 w-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent text-slate-700 hover:bg-emerald-600/5';
                 html +=
-                    `<x-ui.button type="button" onclick="loadAdminFinance(${i})" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</x-ui.button>`;
+                    `<button type="button" onclick="loadAdminFinance(${i})" class="${cls} text-[13px] font-bold focus:ring-0!">${i}</button>`;
             }
             if (cur < last) html +=
-                `<x-ui.button type="button" onclick="loadAdminFinance(${cur + 1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">التالي</x-ui.button>`;
+                `<button type="button" onclick="loadAdminFinance(${cur + 1})" class="h-9 rounded-lg border-[1.5px] border-emerald-900/10 bg-transparent px-3 text-[13px] font-bold text-slate-700 transition hover:bg-emerald-600/5 focus:ring-0!">التالي</button>`;
             el.innerHTML = html + '</div>';
         }
 
@@ -5068,7 +5061,7 @@ function serviceOptionsText(options) {
                 return;
             }
             inner.innerHTML = list.map((u, i) => `
-                <x-ui.button type="button" onclick="pickMchargeClient(${u.id})"
+                <button type="button" onclick="pickMchargeClient(${u.id})"
                     class="w-full cursor-pointer border-0 border-b border-emerald-900/5 ${i === _mcHi ? 'bg-slate-50' : 'bg-white'} px-3.5 py-2.5 text-start transition-colors focus:ring-0!"
                     style="${i === _mcHi ? 'outline:2px solid var(--pri,#059669);outline-offset:-2px;' : ''}">
                     <span class="flex w-full items-center justify-between gap-2.5">
@@ -5078,7 +5071,7 @@ function serviceOptionsText(options) {
                         </span>
                         <span class="shrink-0 text-xs font-extrabold text-emerald-600">${riyalsOfl(u.balance)}</span>
                     </span>
-                </x-ui.button>`).join('');
+                </button>`).join('');
             el.style.display = 'block';
         }
 
@@ -5399,11 +5392,11 @@ function serviceOptionsText(options) {
                 </div>
 
                 <div>
-                    <x-ui.button type="button"
+                    <button type="button"
                         class="btn-sm focus:ring-0!"
                         onclick="deleteOfficeSpecialty(${s.id})">
                         <i class="ti ti-trash"></i>
-                    </x-ui.button>
+                    </button>
                 </div>
 
             </div>
@@ -5519,14 +5512,12 @@ function serviceOptionsText(options) {
                 "
             >
 
-                <x-ui.button
-                    type="button"
+                <button type="button"
                     class="btn-icon focus:ring-0!"
                     onclick="toggleOfficeSpecialty(${specialty.id})"
-                    title="تغيير الحالة"
-                >
+                    title="تغيير الحالة">
                     <i class="ti ti-power"></i>
-                </x-ui.button>
+                </button>
 
             </div>
 
@@ -5814,26 +5805,26 @@ function serviceOptionsText(options) {
                                 ${xuiLabel('سبب الرفض (يظهر للمكتب)')}
                                 ${xuiTextarea('', `id="reject-reason-${svc.id}" rows="2" placeholder="اكتب سبب الرفض بوضوح..."`)}
                                 <div class="mt-2 flex gap-2" style="direction:ltr">
-                                    <x-ui.button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-red-600 px-4 text-xs font-bold text-white hover:bg-red-700"
+                                    <button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-red-600 px-4 text-xs font-bold text-white hover:bg-red-700"
                                         onclick="confirmRejectOfficeService(${svc.id})">
                                         <i class="ti ti-x"></i> تأكيد الرفض
-                                    </x-ui.button>
-                                    <x-ui.button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-4 text-xs font-bold text-slate-600 hover:bg-slate-200"
+                                    </button>
+                                    <button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-slate-100 px-4 text-xs font-bold text-slate-600 hover:bg-slate-200"
                                         onclick="toggleRejectBox(${svc.id}, false)">
                                         إلغاء
-                                    </x-ui.button>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-2">
-                            <x-ui.button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-[--pri] px-4 text-xs font-bold text-white shadow-sm hover:opacity-90"
+                            <button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg bg-[--pri] px-4 text-xs font-bold text-white shadow-sm hover:opacity-90"
                                 onclick="approveSelectedService(${svc.id})">
                                 <i class="ti ti-check"></i> موافقة
-                            </x-ui.button>
-                            <x-ui.button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg border border-red-200 px-4 text-xs font-bold text-red-600 hover:bg-red-50"
+                            </button>
+                            <button type="button" class="inline-flex h-9 items-center gap-1 rounded-lg border border-red-200 px-4 text-xs font-bold text-red-600 hover:bg-red-50"
                                 onclick="toggleRejectBox(${svc.id}, true)">
                                 <i class="ti ti-x"></i> رفض
-                            </x-ui.button>
+                            </button>
                         </div>
                     </div>
                 </div>

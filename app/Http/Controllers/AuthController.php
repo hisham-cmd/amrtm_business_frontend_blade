@@ -246,7 +246,17 @@ class AuthController extends Controller
             $pageData['officeFinancial'] = $unwrap($this->callAuthed('GET', '/api/v1/admin/office-financial'))->all();
             $pageData['officeRequests']  = $unwrap($this->callAuthed('GET', '/api/v1/admin/office-requests'), true)->all();
         } elseif ($adminPage === 'contracts') {
-            $pageData['settlements'] = $unwrap($this->callAuthed('GET', '/api/v1/admin/settlements'))->all();
+            // العقود الحقيقية من bs_contracts (وليست bs_office_settlements).
+            // الـ API يُرجع قائمة مسطّحة، لذا نغلّفها بنفس شكل الـ paginator
+            // الذي تتوقعه صفحة contracts.blade.php ($settlements['data']).
+            $contracts = $unwrap($this->callAuthed('GET', '/api/v1/admin/contracts?status=all'), true)->values();
+            $pageData['settlements'] = [
+                'data'         => $contracts->all(),
+                'current_page' => 1,
+                'last_page'    => 1,
+                'total'        => $contracts->count(),
+                'per_page'     => $contracts->count() ?: 1,
+            ];
         } elseif ($adminPage === 'permissions') {
             $pageData['admins'] = $unwrap($this->callAuthed('GET', '/api/v1/supervisor/admins'))->all();
         }

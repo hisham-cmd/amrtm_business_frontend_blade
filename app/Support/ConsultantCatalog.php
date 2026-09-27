@@ -57,9 +57,17 @@ class ConsultantCatalog
 
         try {
             $base = rtrim((string) env('BACKEND_API_URL', 'http://127.0.0.1:8000'), '/');
-            $resp = Http::timeout(15)
-                ->withHeaders(['Accept' => 'application/json'])
-                ->get($base . '/api/v1/consultant-specialties');
+
+            // عبر BackendHttp لفك تحدي aes.js من الاستضافة تلقائياً
+            $resp = \App\Support\BackendHttp::send(
+                fn (string $u, ?string $cookie) => Http::timeout(15)
+                    ->withHeaders(array_filter([
+                        'Accept' => 'application/json',
+                        'Cookie' => $cookie,
+                    ]))
+                    ->get($u),
+                $base . '/api/v1/consultant-specialties',
+            );
 
             if ($resp->successful()) {
                 $json = $resp->json();
