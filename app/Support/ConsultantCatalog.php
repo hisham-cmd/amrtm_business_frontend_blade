@@ -173,4 +173,42 @@ class ConsultantCatalog
 
         return null;
     }
+
+    /**
+     * الأنشطة التجارية المرتبطة بفئة/قسم واحد.
+     *
+     * partial::provider-office-fields-extra يستخدمها في:
+     *   data-activities="{{ implode(',', ConsultantCatalog::activitiesForCategory($catKey)) }}"
+     * و JS يفلتر الأقسام حسب النشاط التجاري المختار عبر
+     *   acts.indexOf(activity) !== -1
+     * أي أن كل قسم يحمل قائمة الأنشطة التي تملك تخصصات فيها.
+     *
+     * مصدرها قائمة التخصصات نفسها (كل تخصص يحمل category + business_activity)،
+     * لأن endpoint /api/v1/consultant-specialties لا يعطي ربطاً مباشراً بين
+     * الفئة والنشاط.
+     *
+     * @return array<int,string> مفاتيح الأنشطة (بلا تكرار)
+     */
+    public static function activitiesForCategory(?string $categoryKey): array
+    {
+        if ($categoryKey === null || $categoryKey === '') {
+            return [];
+        }
+
+        $out = [];
+        foreach (self::specialties() as $spec) {
+            if (! is_array($spec)) {
+                continue;
+            }
+            if (($spec['category'] ?? null) !== $categoryKey) {
+                continue;
+            }
+            $act = $spec['business_activity'] ?? null;
+            if (is_string($act) && $act !== '' && ! in_array($act, $out, true)) {
+                $out[] = $act;
+            }
+        }
+
+        return $out;
+    }
 }

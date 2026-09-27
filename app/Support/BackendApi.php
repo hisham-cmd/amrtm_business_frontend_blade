@@ -30,6 +30,29 @@ class BackendApi
     }
 
     /**
+     * POST بإرسال multipart/form-data — مطلوب عند وجود ملفات في $body.
+     *
+     * ⚠️ لماذا لا يكفي post() العادي؟
+     * PendingRequest::$bodyFormat الافتراضي هو 'json'، فأي UploadedFile داخل
+     * $body يُحوَّل إلى JSON ويفقد محتواه — فيصل للباك اند كنص فارغ
+     * (وليس ملفاً) وتفشل قاعدة 'image' بالخطأ validation.image.
+     *
+     * ⚠️ ولماذا نستخدم attach() بدل وضع الملف داخل asMultipart()->post()؟
+     * parseMultipartBodyFormat() يغلّف كل قيمة بـ ['name'=>..,'contents'=>..]
+     * دون 'filename'، و Guzzle لا يقرأ كائن UploadedFile من 'contents'
+     * فيرسله فارغاً. attach() هي الطريقة المعتمدة: هي من يضيف
+     * 'filename' فعلياً من PendingRequest::$pendingFiles.
+     *
+     * الشكل المتوقّع:
+     *   $body  => الحقول النصية فقط.
+     *   $files => [ 'اسم_الحقل' => UploadedFile ]  وتُرسَل عبر attach().
+     */
+    public static function postMultipart(string $path, array $body = [], array $files = []): \Illuminate\Support\Collection
+    {
+        return self::request('POST', $path, $body, $files);
+    }
+
+    /**
      * هل نجح الطلب فعلاً؟ — يعتمد على استجابة الـ API نفسها لا على تغيّر شكل البيانات.
      * أي فشل (شبكة، 4xx، 5xx، أو استجابة بلا isSuccess) ⇒ false.
      */
@@ -62,7 +85,7 @@ class BackendApi
      *   - بيانات دخول خاطئة  (رسالة الباك اند الأصلية)
      *   - الباك اند متوقف / الشبكة  (رسالة تشغيلية واضحة)
      */
-    private static function request(string $method, string $path, array $payload): \Illuminate\Support\Collection
+    private static function request(string $method, string $path, array $payload, array $files = []): \Illuminate\Support\Collection
     {
         $url = self::baseUrl() . $path;
 
@@ -73,10 +96,39 @@ class BackendApi
              | يمرّ عبر معامل $cookie.
              */
             $isPost = strtoupper($method) === 'POST';
-            $build  = function (string $u, ?string $cookie) use ($isPost, $payload) {
-                $req = Http::timeout(10)->withHeaders(['Accept' => 'application/json']);
+            $build  = function (string $u, ?string $cookie) use ($isPost, $payload, $files) {
+                $req = Http::timeout($files ? 60 : 10)->withHeaders(['Accept' => 'application/json']);
                 if ($cookie) {
                     $req = $req->withHeaders(['Cookie' => $cookie]);
+                }
+
+                if ($files) {
+                    // asMultipart + attach لكل ملف (انظر شرح postMultipart)
+                    $req = $req->asMultipart();
+                    foreach ($files as $field => $file) {
+                        if ($file instanceof \Illuminate\Http\UploadedFile) {
+                            /*
+                             * ⚠️ نمرّر مورداً (resource) وليس نص المسار:
+                             * Guzzle يرسل أي قيمة نصية في 'contents' كما هي،
+                             * فلو مرّرنا getRealPath() لأرسل نص «C:\...\php.tmp»
+                             * على أنه محتوى الملف، فيرفضه التحقق 'image'
+                             * بالخطأ validation.image.
+                             * المورد القابل للقراءة يرسل البايتات الفعلية.
+                             */
+                            $handle = @fopen($file->getRealPath(), 'rb');
+                            if ($handle === false) {
+                                continue;
+                            }
+                            $req = $req->attach(
+                                $field,
+                                $handle,
+                                $file->getClientOriginalName(),
+                                ['Content-Type' => $file->getClientMimeType()]
+                            );
+                        }
+                    }
+
+                    return $req->post($u, $payload);
                 }
 
                 return $isPost ? $req->post($u, $payload) : $req->get($u, $payload);
@@ -88,6 +140,27 @@ class BackendApi
                 $status = $resp->status();
                 $code   = $resp->json('error.code');
                 $msg    = $resp->json('error.message');
+
+                /*
+                 | ⚠️ كان يُقرأ error.message فقط، لكن استجابة التحقق القياسية في
+                 | Laravel هي { message, errors:{field:[…]} } بلا error.*، فكانت
+                 | كل أخطاء التحقق (422) تتحوّل إلى «بيانات الدخول غير صحيحة»
+                 | وتفقد المستخدم سبب الرفض تماماً. نقرأ message/errors أيضاً.
+                 */
+                if ($msg === null || $msg === '') {
+                    $msg = $resp->json('message');
+                }
+
+                $fieldErrors = $resp->json('errors');
+                if (is_array($fieldErrors) && $fieldErrors !== []) {
+                    $flat = [];
+                    foreach ($fieldErrors as $field => $list) {
+                        foreach ((array) $list as $line) {
+                            $flat[] = $line;
+                        }
+                    }
+                    $msg = $msg ? ($msg . ' — ' . implode(' • ', array_slice($flat, 0, 4))) : implode(' • ', array_slice($flat, 0, 4));
+                }
 
                 Log::warning("BackendApi {$method} {$path} => HTTP {$status}: " . ($msg ?? 'no message'));
 

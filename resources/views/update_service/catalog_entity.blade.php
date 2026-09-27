@@ -2541,28 +2541,37 @@
 
             if (!window.AMRTM_USER) {
                 /*
-                 | الزائر لا يرى لوحات الخطوات 2/3 — عمده محجوبة بالبوابة أسفل النموذج.
-                 | بعد "المتابعة" يبقى على الخطوة الأولى (حتى تظهر المتطلبات
-                 | أسفلها) ويُعرض معه في نفس الوقت بوابة تسجيل الدخول.
+                 |----------------------------------------------------------------------
+                 | الزائر: الخطوة الثانية والثالثة محجوبتان عنه (الجزء Auth في القالب)
+                 | فلم يبقَ له سوى طريقتين: إكمال بيانات الخدمة ثم تسجيل الدخول.
+                 |
+                 | عند "المتابعة" ننتقل إلى مرحلة البيانات: نُخفي لوحة اختيار
+                 | الخدمة (step-1) ونُظهر كتلة المتطلبات (#step-1-fields) مع بوابة
+                 | تسجيل الدخول تحتها. سابقاً كان يُعاد تنشيط step-1 فتبقى
+                 | خيارات الخدمات ظاهرة وتبدو كأن شيئاً لم يحدث.
+                 |
+                 | "رجوع" يعيده إلى اختيار الخدمة ويُخفي المتطلبات والبوابة.
                  */
-                document.querySelectorAll('.cui-step-panel').forEach(p => p.classList.remove('active'));
+
                 const p1 = document.getElementById('step-1');
-                if (p1) p1.classList.add('active');
+                const gate = document.getElementById('login-gate');
 
                 if (step === 1) {
-                    // العودة للخطوة الأولى = إلغاء البدء ⇒ تُخفى المتطلبات والبوابة
+                    // رجوع ⇒ مرحلة اختيار الخدمة
                     step1Started = false;
-                    hideLoginGate();
+                    if (p1) p1.classList.add('active');
+                    if (gate) gate.style.display = 'none';
+                    currentStep = 1;
                     updateIndicators(1);
                 } else {
-                    // ضغط "المتابعة" ⇒ تبدأ الخدمة ⇒ المتطلبات + بوابة الدخول
+                    // متابعة ⇒ مرحلة بيانات الخدمة + بوابة الدخول
                     step1Started = true;
-                    showLoginGate();
+                    if (p1) p1.classList.remove('active');
+                    if (gate) gate.style.display = 'block';
+                    currentStep = 1;
                     updateIndicators(2);
                 }
 
-                // currentStep يبقى 1: كتلة المتطلبات تتبع الخطوة الأولى
-                currentStep = 1;
                 serviceFieldsVisibility();
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 return;

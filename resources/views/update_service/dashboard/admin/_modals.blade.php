@@ -140,6 +140,80 @@
         </div>
     </div>
 
+    <!-- ══════════════════════════════════════════════════════════════
+         نافذة إضافة/تعديل المكاتب — تستدعي واجهة إنشاء الحساب داخل iframe
+         ══════════════════════════════════════════════════════════════
+         الأنواع الثلاثة (يختارها المستخدم من داخل النافذة):
+           1) مكتب مساند  → /provider-account/create
+           2) مكتب استشاري → /provider-account/create?type=consultant
+           3) حساب منشأة   → /provider-account/create?type=client&account_type=establishment
+         وفي وضع التعديل (?edit={id}) تُحمَّل نفس الواجهة مع تعبئة بيانات
+         المكتب القائم، وترسل إلى PUT /admin/offices/{id}.
+    -->
+    <div id="office-form-modal" data-modal-target="office-form-modal" tabindex="-1" aria-hidden="true"
+        class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-900/50 p-3 md:p-4">
+        <div class="relative flex max-h-[94vh] w-full max-w-5xl flex-col">
+            <div class="relative flex max-h-[94vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-800">
+
+                {{-- ترويسة النافذة --}}
+                <div class="flex flex-col gap-3 border-b border-gray-200 p-4 dark:border-gray-600">
+                    <div class="flex items-center justify-between gap-3">
+                        <h3 class="flex min-w-0 items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
+                            <i id="ofm-ttl-icon" class="ti ti-building text-emerald-600"></i>
+                            <span id="ofm-title" class="truncate">إضافة مكتب مساند</span>
+                        </h3>
+                        <x-ui.button variant="ghost" size="sm" aria-label="إغلاق"
+                            class="ms-auto h-8! w-8! shrink-0 rounded-lg! bg-transparent! p-0! text-sm! text-gray-400! hover:bg-gray-200! hover:text-gray-900! dark:hover:bg-gray-600! dark:hover:text-white!"
+                            onclick="closeOfficeFormModal()"><i class="ti ti-x"></i></x-ui.button>
+                    </div>
+
+                    {{-- شريط اختيار النوع: يظهر في وضع الإضافة فقط --}}
+                    <div id="ofm-type-bar" class="flex flex-wrap gap-2">
+                        <x-ui.button type="button" data-ofm-kind="office"
+                            class="ofm-kind-btn flex-1! min-w-[150px] justify-center! rounded-xl! border! px-3! py-2.5! text-[12.5px]! font-extrabold! transition-all!">
+                            <i class="ti ti-building-community"></i> مكتب مساند
+                        </x-ui.button>
+                        <x-ui.button type="button" data-ofm-kind="consultant"
+                            class="ofm-kind-btn flex-1! min-w-[150px] justify-center! rounded-xl! border! px-3! py-2.5! text-[12.5px]! font-extrabold! transition-all!">
+                            <i class="ti ti-user-star"></i> مكتب استشاري
+                        </x-ui.button>
+                        <x-ui.button type="button" data-ofm-kind="establishment"
+                            class="ofm-kind-btn flex-1! min-w-[150px] justify-center! rounded-xl! border! px-3! py-2.5! text-[12.5px]! font-extrabold! transition-all!">
+                            <i class="ti ti-user-shield"></i> حساب منشأة
+                        </x-ui.button>
+                    </div>
+
+                    <div id="ofm-hint" class="hidden items-start gap-2 rounded-xl bg-slate-50 px-3.5 py-2.5 text-[11.5px] leading-relaxed text-slate-600 dark:bg-gray-700 dark:text-gray-300">
+                        <i class="ti ti-info-circle mt-0.5 shrink-0 text-emerald-600"></i>
+                        <span id="ofm-hint-text"></span>
+                    </div>
+                </div>
+
+                {{-- جسم النافذة: واجهة إنشاء الحساب مضمّنة --}}
+                <div class="relative min-h-[320px] flex-1 overflow-y-auto bg-slate-50 dark:bg-gray-900">
+                    <div id="ofm-loader" class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white dark:bg-gray-900">
+                        <i class="ti ti-loader-2 animate-spin text-2xl text-emerald-600"></i>
+                        <span class="text-[12.5px] font-bold text-slate-500">جارٍ تحميل النموذج...</span>
+                    </div>
+                    <iframe id="ofm-frame" title="نموذج حساب المكتب" src="about:blank"
+                        class="block h-full min-h-[320px] w-full border-0 bg-white"
+                        style="height:min(72vh,760px)"></iframe>
+                </div>
+
+                {{-- تذييل النافذة --}}
+                <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 p-3 dark:border-gray-600 md:px-4">
+                    <span class="text-[11px] font-semibold text-slate-500">
+                        <i class="ti ti-shield-check ms-1 text-emerald-600"></i>
+                        سيتم اعتماد الطلب من الإدارة بعد الإرسال.
+                    </span>
+                    <x-ui.button
+                        class="border-emerald-900/10! bg-white! text-slate-700! hover:bg-emerald-600/5! hover:text-emerald-700!"
+                        onclick="closeOfficeFormModal()">إغلاق</x-ui.button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- CONTRACT MODAL (create/view) -->
     <div id="contract-view-modal" data-modal-target="contract-view-modal" tabindex="-1" aria-hidden="true" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-900/50 p-4">
         <div class="relative w-full max-w-3xl">

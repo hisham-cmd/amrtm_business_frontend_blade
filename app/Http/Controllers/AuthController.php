@@ -112,14 +112,62 @@ class AuthController extends Controller
     /** معالجة POST التسجيل (إنشاء حساب عميل) */
     public function register(Request $request): \Illuminate\Http\RedirectResponse
     {
-        $data = BackendApi::post('/api/v1/auth/register', [
-            'name'                  => $request->input('name'),
-            'email'                 => $request->input('email'),
-            'phone'                 => $request->input('phone'),
-            'password'              => $request->input('password'),
-            'password_confirmation' => $request->input('password_confirmation', $request->input('password')),
-            'account_type'          => $request->input('account_type', 'individual'),
-        ]);
+        /*
+         * ⚠️ كان يمرّر 6 حقول فقط (name/email/phone/password/account_type)،
+         * فكانت كل بيانات النموذج الأخرى — اسم الأب/العائلة/رقم الهوية/القطاع
+         * والحالة الوظيفية للعميل الفردي، واسم المنشأة/نوع الكيان/السجل
+         * التجاري والمو 地址 للمنشأة — تُسقط بصمت رغم أن النموذج يجمعها
+         * و Backend\BusinessUser\BusinessUser$fillable يعرّفها.
+         * نمرّر الآن كل حقل موجود في BusinessUser::$fillable.
+         */
+        $accountType = $request->input('account_type', 'individual') === 'establishment'
+            ? 'establishment'
+            : 'individual';
+
+        // حقول يقبلها نموذج العميل: فردية + منشأة (مطابقة لـ BusinessUser::$fillable)
+        $fields = [
+            // مشتركة
+            'name', 'email', 'phone', 'password', 'password_confirmation',
+            'account_type', 'phone_dial', 'profile_photo',
+            'country', 'region', 'city', 'district', 'street',
+            'building_number', 'office_number', 'postal_code',
+            // عميل فردي
+            'father_name', 'grandfather_name', 'family_name', 'id_number',
+            'job_sector', 'employment_status',
+            // عميل منشأة
+            'legal_name', 'entity_type', 'representative_name', 'representative_role',
+            'cr_number', 'cr_expiry_date', 'license_expiry_date',
+        ];
+
+        $payload = ['account_type' => $accountType];
+        $files   = [];
+
+        foreach ($fields as $field) {
+            if ($field === 'account_type') {
+                continue;
+            }
+            // password_confirmation قد لا تأتي منفصلة (نموذج بلا تأكيد)
+            if ($field === 'password_confirmation' && ! $request->has('password_confirmation')) {
+                continue;
+            }
+            if ($request->hasFile($field)) {
+                // الملفات تُرسَل عبر attach() لا داخل الحمولة النصية
+                $files[$field] = $request->file($field);
+                continue;
+            }
+            $value = $request->input($field);
+            if ($value !== null && $value !== '') {
+                $payload[$field] = is_string($value) ? trim($value) : $value;
+            }
+        }
+
+        /*
+         * وجود ملف يتطلب multipart صريحاً: post() العادي يرسل JSON
+         * فيفقد الملف (انظر postMultipart في BackendApi).
+         */
+        $data = $files
+            ? BackendApi::postMultipart('/api/v1/auth/register', $payload, $files)
+            : BackendApi::post('/api/v1/auth/register', $payload);
 
         // استخراج التوكن من المغلف (نفس منطق login)
         $value = $data->get('value');
@@ -131,14 +179,50 @@ class AuthController extends Controller
             $err  = $data->get('error');
             $msg  = is_array($err) ? ($err['message'] ?? 'تعذر إنشاء الحساب.') : 'تعذر إنشاء الحساب.';
 
-            return redirect()->route('amrtm.register')
+            /*
+             * نعيد المستخدم لنفس الصفحة التي جاء منها النموذج:
+             *  - حقول العميل (القطاع/الهوية/السجل التجاري) ⇒ واجهة العميل
+             *    في provider-account/create.
+             *  - بدونها ⇒ صفحة /register التقليدية التي لا تتأثر بتغيير الوجهة.
+             */
+            $isClientForm = $request->has('father_name')
+                || $request->has('id_number')
+                || $request->has('cr_number')
+                || $request->has('entity_type');
+
+            $back = $isClientForm
+                ? route('amrtm.provider.account.create', array_filter([
+                    'type'         => 'client',
+                    'account_type' => $accountType,
+                    // وضع التضمين: النافذة المنبثقة في لوحة الأدمن ترسل embed=1
+                    'embed'        => $request->boolean('embed') || $request->boolean('return_embed') ? 1 : null,
+                ]))
+                : route('amrtm.register');
+
+            return redirect()->to($back)
                 ->withErrors(['email' => $msg])
                 ->withInput();
         }
 
         session(['amrtm_api_token' => $token]);
 
-        return redirect()->route('amrtm.index')->with('success', 'تم إنشاء حسابك بنجاح!');
+        $successMessage = 'تم إنشاء حسابك بنجاح!';
+
+        /*
+         * وضع التضمين: نعيد لصفحة النموذج داخل النافذة لتعرض بطاقة النجاح،
+         * وهي تُعلم النافذة الأم عبر postMessage فتُغلق وتحدّث القائمة.
+         */
+        if ($request->boolean('embed') || $request->boolean('return_embed')) {
+            return redirect()
+                ->route('amrtm.provider.account.create', [
+                    'type'         => 'client',
+                    'account_type' => $accountType,
+                    'embed'        => 1,
+                ])
+                ->with('success', $successMessage);
+        }
+
+        return redirect()->route('amrtm.index')->with('success', $successMessage);
     }
 
     /** تسجيل الخروج — مسح جلسة التوكن */

@@ -1,53 +1,75 @@
 @extends('layouts.public')
 
-@section('title', 'تسجيل منشأة جديدة | منصة آمر تم')
+@php
+    /*
+     * حساب $mode/$pageTitle/etc. قبل @section('title') لأن
+     * <title>@yield('title')</title> في layouts/public يقرأ القسم مباشرة،
+     * ولا يقرأ قسماً معرّفاً داخل @section('content').
+     */
+    $modeValue = $mode ?? 'office';
+    $modeClient = $modeValue === 'client';
+    $modeConsultant = $modeValue === 'consultant';
+
+    /*
+     * وضع التضمين: الصفحة داخل نافذة منبثقة في لوحة الأدمن.
+     * نُخفي كل ما تملكه النافذة ترويسته (شريط علوي + breadcrumb + بانر كبير)
+     * ونُبقي النموذج فقط، ونُصغّر المسافات.
+     */
+    $isEmbed = (bool) ($isEmbed ?? false);
+    $editId  = $editId ?? null;
+    $isEdit  = $editId !== null;
+
+    $pageTitle = $modeClient
+        ? ($isEdit ? 'تعديل حساب منشأة' : 'إنشاء حساب عميل')
+        : ($modeConsultant
+            ? ($isEdit ? 'تعديل مكتب استشاري' : 'تسجيل مستشار جديد')
+            : ($isEdit ? 'تعديل مكتب مساند' : 'إضافة مكتب مساند'));
+
+    $pageIcon = $modeClient
+        ? 'ti-user-shield'
+        : ($modeConsultant ? 'ti-user-star' : 'ti-building');
+
+    $pageDesc = $modeClient
+        ? 'أنشئ حسابك كعميل طالب خدمة — فرداً أو منشأة — لتتمكن من طلب الخدمات ومتابعة الطلبات والعقود على المنصة.'
+        : ($modeConsultant
+            ? 'أدخل بيانات المستشار والمستندات المطلوبة لإرسال طلب التسجيل للمراجعة والاعتماد. الاشتراك السنوي يمنحك ظهوراً دائماً للعملاء دون عمولة.'
+            : 'أدخل بيانات المكتب أو المنشأة والمستندات المطلوبة لإرسال طلب التسجيل للمراجعة والاعتماد.');
+@endphp
+
+@section('title', $pageTitle . ' | منصة آمر تم')
 
 @section('content')
 
-    @php
-        $modeValue = $mode ?? 'office';
-        $modeClient = $modeValue === 'client';
-        $modeConsultant = $modeValue === 'consultant';
+    @unless($isEmbed)
+        {{-- NAVBAR --}}
+        @include('partials.public.navbar', ['active' => 'services'])
+    @endunless
 
-        $pageTitle = $modeClient
-            ? 'إنشاء حساب عميل'
-            : ($modeConsultant ? 'تسجيل مستشار جديد' : 'تسجيل منشأة جديدة');
+    <div class="{{ $isEmbed ? 'bg-white' : 'min-h-screen bg-[#F4F6FB]' }}">
+        <div class="{{ $isEmbed ? 'p-3 md:p-4' : 'mx-auto max-w-[1240px] px-4 pb-16 md:px-6' }}">
 
-        $pageIcon = $modeClient
-            ? 'ti-user-shield'
-            : ($modeConsultant ? 'ti-user-star' : 'ti-building');
-
-        $pageDesc = $modeClient
-            ? 'أنشئ حسابك كعميل طالب خدمة — فرداً أو منشأة — لتتمكن من طلب الخدمات ومتابعة الطلبات والعقود على المنصة.'
-            : ($modeConsultant
-                ? 'أدخل بيانات المستشار والمستندات المطلوبة لإرسال طلب التسجيل للمراجعة والاعتماد. الاشتراك السنوي يمنحك ظهوراً دائماً للعملاء دون عمولة.'
-                : 'أدخل بيانات المكتب أو المنشأة والمستندات المطلوبة لإرسال طلب التسجيل للمراجعة والاعتماد.');
-    @endphp
-
-    {{-- NAVBAR --}}
-    @include('partials.public.navbar', ['active' => 'services'])
-
-    <div class="min-h-screen bg-[#F4F6FB]">
-        <div class="mx-auto max-w-[1240px] px-4 pb-16 md:px-6">
-
-            {{-- BREADCRUMB --}}
-            <nav class="flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white px-2 py-3.5 text-[13px] text-slate-500 md:px-4"
-                aria-label="Breadcrumb">
-                <a href="{{ route('amrtm.index') }}"
-                    class="inline-flex items-center gap-1 font-semibold no-underline transition-colors hover:text-[#006C35]">
-                    <i class="ti ti-home-2 text-[14px]"></i> <span>الرئيسية</span>
-                </a>
-                <i class="ti ti-chevron-left text-[11px] text-slate-400"></i>
-                <a href="{{ route('amrtm.provider.account.create') }}"
-                    class="no-underline transition-colors hover:text-[#006C35]">{{ $modeClient ? 'إنشاء حساب عميل' : 'تسجيل مقدم خدمة' }}</a>
-                <i class="ti ti-chevron-left text-[11px] text-slate-400"></i>
-                <span class="font-bold text-[#006C35]">{{ $pageTitle }}</span>
-            </nav>
+            @unless($isEmbed)
+                {{-- BREADCRUMB --}}
+                <nav
+                    class="flex flex-wrap items-center gap-1.5 border-b border-slate-200 bg-white px-2 py-3.5 text-[13px] text-slate-500 md:px-4"
+                    aria-label="Breadcrumb">
+                    <a href="{{ route('amrtm.index') }}"
+                        class="inline-flex items-center gap-1 font-semibold no-underline transition-colors hover:text-[#006C35]">
+                        <i class="ti ti-home-2 text-[14px]"></i> <span>الرئيسية</span>
+                    </a>
+                    <i class="ti ti-chevron-left text-[11px] text-slate-400"></i>
+                    <a href="{{ route('amrtm.provider.account.create') }}"
+                        class="no-underline transition-colors hover:text-[#006C35]">{{ $modeClient ? 'إنشاء حساب عميل' : 'تسجيل مقدم خدمة' }}</a>
+                    <i class="ti ti-chevron-left text-[11px] text-slate-400"></i>
+                    <span class="font-bold text-[#006C35]">{{ $pageTitle }}</span>
+                </nav>
+            @endunless
 
             @if(session('success'))
 
                 {{-- ===================== SUCCESS ===================== --}}
-                <div class="flex min-h-[60vh] items-center justify-center py-10" data-amrtm-flash-static>
+                <div class="flex items-center justify-center {{ $isEmbed ? 'min-h-[220px] py-4' : 'min-h-[60vh] py-10' }}"
+                    data-amrtm-flash-static>
                     <div
                         class="w-full max-w-[620px] rounded-[22px] border border-slate-200 bg-white px-6 py-12 text-center shadow-[0_15px_45px_rgba(15,23,42,.08)] sm:px-10">
                         <div
@@ -62,23 +84,37 @@
             @else
 
                 {{-- ===================== HERO ===================== --}}
-                <section
-                    class="relative mb-5 mt-6 overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0f766e] via-[#116e68] to-[#0d5d58] px-6 py-9 text-white shadow-[0_15px_35px_rgba(15,118,110,.15)] sm:px-8">
-                    <div class="pointer-events-none absolute -right-20 -top-44 h-[300px] w-[300px] rounded-full bg-white/5">
-                    </div>
-                    <div class="pointer-events-none absolute -bottom-36 -left-20 h-[220px] w-[220px] rounded-full bg-white/5">
-                    </div>
-                    <div class="relative z-[2] text-center">
-                        <div
-                            class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[17px] border border-white/15 bg-white/10">
-                            <i class="ti {{ $pageIcon }} text-[25px]"></i>
+                @unless($isEmbed)
+                    <section
+                        class="relative mb-5 mt-6 overflow-hidden rounded-[22px] bg-gradient-to-br from-[#0f766e] via-[#116e68] to-[#0d5d58] px-6 py-9 text-white shadow-[0_15px_35px_rgba(15,118,110,.15)] sm:px-8">
+                        <div class="pointer-events-none absolute -right-20 -top-44 h-[300px] w-[300px] rounded-full bg-white/5">
                         </div>
-                        <h1 class="mb-2 text-[27px] font-extrabold">{{ $pageTitle }}</h1>
-                        <p class="mx-auto max-w-[700px] text-[13px] leading-relaxed text-white/90">
-                            {{ $pageDesc }}
-                        </p>
+                        <div class="pointer-events-none absolute -bottom-36 -left-20 h-[220px] w-[220px] rounded-full bg-white/5">
+                        </div>
+                        <div class="relative z-[2] text-center">
+                            <div
+                                class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[17px] border border-white/15 bg-white/10">
+                                <i class="ti {{ $pageIcon }} text-[25px]"></i>
+                            </div>
+                            <h1 class="mb-2 text-[27px] font-extrabold">{{ $pageTitle }}</h1>
+                            <p class="mx-auto max-w-[700px] text-[13px] leading-relaxed text-white/90">
+                                {{ $pageDesc }}
+                            </p>
+                        </div>
+                    </section>
+                @endunless
+
+                {{-- ===================== EDIT BANNER (وضع التعديل داخل النافذة) ===================== --}}
+                @if($isEdit)
+                    <div
+                        class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2.5 text-[12px] font-bold text-violet-800">
+                        <i class="ti ti-pencil text-[15px]"></i>
+                        <span>وضع التعديل — البيانات المحفوظة مسبقاً مُعبّأة، وأي حقل لا تريد تغييره اتركه كما هو.</span>
+                        <span id="pa-edit-loading" class="ms-auto flex items-center gap-1.5 text-[11px] font-semibold text-violet-600">
+                            <i class="ti ti-loader-2 animate-spin"></i> جارٍ تحميل البيانات...
+                        </span>
                     </div>
-                </section>
+                @endif
 
                 {{-- ===================== GENERAL ERRORS ===================== --}}
                 @if($errors->any())
@@ -121,6 +157,9 @@
                     <form method="POST" action="{{ route('amrtm.register.submit') }}" id="client-type-form"
                         enctype="multipart/form-data">
                         @csrf
+                        @if ($isEmbed)
+                            <input type="hidden" name="embed" value="1">
+                        @endif
 
                         <section
                             class="mb-4 rounded-[18px] border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,.055)] sm:p-6">
@@ -137,13 +176,26 @@
                             </div>
 
                             {{-- نوع حساب العميل: عميل مفرد / عميل منشأة --}}
+                            @php
+                                /*
+                                 * يُحسب هنا (قبل الأزرار) لأن حالة الـ pill النشطة
+                                 * تعتمد عليه.القيمة الافتراضية تأتي من
+                                 * ?account_type=establishment في المسار، وتتجاوزها
+                                 * قيمة old() بعد فشل تحقق.
+                                 */
+                                $clientTypeValue = old('account_type', $defaultClientAccountType ?? 'individual');
+                                $clientSelectedType = $clientTypeValue === 'establishment' ? 'establishment' : 'individual';
+                                $clientPillBase    = 'sub-type-pill flex flex-1 cursor-pointer items-center justify-start gap-2.5 rounded-xl border px-4 py-3 text-right transition-all duration-200 ';
+                                $clientPillActive  = 'border-[#0f766e] bg-teal-50 text-[#0f766e] shadow-[0_4px_14px_rgba(15,118,110,.12)]';
+                                $clientPillIdle    = 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50';
+                            @endphp
                             <div class="mb-5 border-b border-slate-100 pb-5">
                                 <label class="mb-2.5 block text-[12px] font-bold text-gray-700">
                                     نوع الحساب <span class="text-red-600">*</span>
                                 </label>
                                 <div class="flex w-full max-w-3xl flex-col gap-2.5 sm:flex-row sm:gap-3" style="direction:rtl">
                                     <button type="button" id="sub-client-individual"
-                                        class="sub-type-pill flex flex-1 cursor-pointer items-center justify-start gap-2.5 rounded-xl border px-4 py-3 text-right transition-all duration-200 border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                                        class="{{ $clientPillBase }}{{ $clientSelectedType === 'individual' ? $clientPillActive : $clientPillIdle }}"
                                         onclick="setClientType('individual')">
                                         <i class="ti ti-user text-[18px]"></i>
                                         <span class="text-[12px] font-extrabold">
@@ -152,7 +204,7 @@
                                         </span>
                                     </button>
                                     <button type="button" id="sub-client-establishment"
-                                        class="sub-type-pill flex flex-1 cursor-pointer items-center justify-start gap-2.5 rounded-xl border px-4 py-3 text-right transition-all duration-200 border-[#0f766e] bg-teal-50 text-[#0f766e] shadow-[0_4px_14px_rgba(15,118,110,.12)]"
+                                        class="{{ $clientPillBase }}{{ $clientSelectedType === 'establishment' ? $clientPillActive : $clientPillIdle }}"
                                         onclick="setClientType('establishment')">
                                         <i class="ti ti-building-community text-[18px]"></i>
                                         <span class="text-[12px] font-extrabold">
@@ -164,11 +216,7 @@
                             </div>
 
                             <input type="hidden" name="account_type" id="client_account_type"
-                                value="{{ old('account_type', $defaultClientAccountType ?? 'individual') }}">
-
-                            @php
-                                $clientSelectedType = old('account_type', $defaultClientAccountType ?? 'individual') === 'establishment' ? 'establishment' : 'individual';
-                            @endphp
+                                value="{{ $clientSelectedType }}">
 
                             {{-- حقول «عميل منشأة»: تُعرض فقط عند اختيار نوع الحساب «منشأة» --}}
                             <div id="client-establishment-fields"
@@ -465,9 +513,17 @@
                 @else
 
                     {{-- ===================== PROVIDER FORM ===================== --}}
-                    <form method="POST" action="{{ route('amrtm.provider.account.store') }}" enctype="multipart/form-data"
-                        id="provider-form">
+                    <form method="POST"
+                        action="{{ $isEdit ? route('amrtm.admin.offices.update', ['id' => $editId]) : route('amrtm.provider.account.store') }}"
+                        enctype="multipart/form-data" id="provider-form">
                         @csrf
+                        @if ($isEmbed)
+                            <input type="hidden" name="embed" value="1">
+                        @endif
+                        @if ($isEdit)
+                            @method('PUT')
+                            <input type="hidden" name="office_id" id="pa-office-id" value="{{ $editId }}">
+                        @endif
 
                         {{-- ===================== OFFICE DATA ===================== --}}
                         <section
@@ -2223,8 +2279,14 @@ ${isChecked ? `
 
                             if (!response.ok) {
                                 const serverMessages = [];
-                                if (data && data.errors) {
-                                    Object.keys(data.errors).forEach(function (key) {
+                                // استجابات الباك اند تحمل الأخطاء إمّا في
+                                // errors (Laravel validation) أو في error.fields
+                                // (المغليف الموحّد لـ /api/v1/*) — نقرأ الاثنين.
+                                const errorFields = (data && data.error && data.error.fields) || null;
+                                const source = (data && data.errors) || errorFields;
+
+                                if (source) {
+                                    Object.keys(source).forEach(function (key) {
                                         const label = document.querySelector('label[for="' + key + '"]');
                                         if (label) {
                                             label.classList.add('invalid');
@@ -2234,23 +2296,34 @@ ${isChecked ? `
                                                 field.classList.add('form-control-is-invalid');
                                             }
                                         }
-                                        const values = data.errors[key];
+                                        const values = source[key];
                                         (Array.isArray(values) ? values : [values]).forEach(function (message) {
                                             serverMessages.push(message);
                                         });
                                     });
                                 } else {
-                                    serverMessages.push(data && data.message ? data.message : 'تعذر إرسال الطلب. يرجى مراجعة البيانات ثم المحاولة مرة أخرى.');
+                                    const msg = (data && data.error && data.error.message) || (data && data.message) || null;
+                                    serverMessages.push(msg || 'تعذر إرسال الطلب. يرجى مراجعة البيانات ثم المحاولة مرة أخرى.');
                                 }
                                 showProviderErrors(serverMessages);
                                 return;
                             }
 
                             showProviderErrors(null);
-                            if (data && data.redirect) {
-                                window.location.href = data.redirect;
+
+                            // الباك اند يضع رابط التحويل داخل value.redirect
+                            // (مغلف /api/v1 الموحّد) وقد يضعه في redirect مباشرة.
+                            const target = (data && (data.redirect || (data.value && data.value.redirect))) || null;
+                            if (target) {
+                                window.location.href = target;
                                 return;
                             }
+
+                            if (data && data.isSuccess === false) {
+                                showProviderErrors([(data.error && data.error.message) || 'تعذر إنشاء الحساب.']);
+                                return;
+                            }
+
                             window.location.href = response.url || form.action;
                         })
                         .catch(function () {
@@ -2398,6 +2471,183 @@ ${isChecked ? `
                 }
             });
         </script>
+
+        {{-- ============================================================
+             وضع التضمين (?embed=1) — الجسر مع النافذة المنبثقة
+             ============================================================
+             الصفحة تعمل داخل <iframe> في نافذة لوحة الأدمن، لذلك:
+               1) عند النجاح نُعلم النافذة الأم لتغلق وتحدّث القائمة.
+               2) عند الفشل نُعلمها لتعرض الرسالة (بدل أن تبقى النافذة
+                  فارغة بلا تغذية راجعة).
+             نتحقق من أصل الرسالة (same-origin) قبل التعامل معها.
+        --}}
+        @if ($isEmbed)
+            <script>
+                (function () {
+                    var EMBED = {
+                        enabled: true,
+                        action: @json($isEdit ? 'update' : 'create'),
+                        officeId: @json($editId),
+                        type: @json($modeValue)
+                    };
+
+                    function notify(kind, message) {
+                        if (window.parent === window) return;              // ليست داخل iframe
+                        try {
+                            window.parent.postMessage({
+                                source: 'amrtm-provider-form',
+                                action: EMBED.action,
+                                type: EMBED.type,
+                                officeId: EMBED.officeId,
+                                kind: kind,
+                                message: message || null
+                            }, window.location.origin);
+                        } catch (e) { /* الأصل مختلف — تجاهُل بأمان */ }
+                    }
+                    window.AMRTM_EMBED = EMBED;
+                    window.amrtmEmbedNotify = notify;
+
+                    // إبلاغ النافذة بأننا جاهزون (تُخفي مؤشر التحميل)
+                    document.addEventListener('DOMContentLoaded', function () {
+                        notify('ready');
+                    });
+                })();
+            </script>
+        @endif
+
+        {{-- ============================================================
+             وضع التعديل (?edit={id}) — تعبئة بيانات المكتب القائم
+             ============================================================
+             نجلب تفاصيل المكتب من /api/admin/offices/{id}/details
+             (الواجهة تمرّر الطلب للباك اند عبر وكيل /api) ونملأ الحقول
+             المتاحة. الحقول غير القابلة للتعبئة (مثل كلمة المرور) تُترك
+             كما هي.
+        --}}
+        @if ($isEdit)
+            <script>
+                (function () {
+                    var OFFICE_ID = @json($editId);
+                    var loading  = document.getElementById('pa-edit-loading');
+
+                    function done(ok, note) {
+                        if (!loading) return;
+                        loading.classList.add('hidden');
+                        if (!ok) {
+                            loading.classList.remove('hidden');
+                            loading.classList.add('text-red-600');
+                            loading.innerHTML = '<i class="ti ti-alert-circle"></i> ' + (note || 'تعذّر تحميل بيانات المكتب — يمكنك الكتابة يدوياً.');
+                        }
+                    }
+
+                    /* يعبّئ حقلاً نصياً/رقمياً/تاريخاً إن كان موجوداً في الصفحة */
+                    function fill(name, value) {
+                        if (value === null || value === undefined || value === '') return false;
+                        var els = document.querySelectorAll('#provider-form [name="' + name + '"], #client-type-form [name="' + name + '"]');
+                        var hit = false;
+                        els.forEach(function (el) {
+                            if (el.type === 'hidden' && name !== 'name' && name !== 'legal_name') {
+                                // الحقول المخفية تُملأ فقط إن كانت فارغة
+                                if (el.value) return;
+                            }
+                            if (el.disabled) return;
+                            el.value = value;
+                            hit = true;
+                            el.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+                        return hit;
+                    }
+
+                    function fillSelect(name, value) {
+                        if (value === null || value === undefined || value === '') return;
+                        var sel = document.querySelector('#provider-form [name="' + name + '"]');
+                        if (!sel) return;
+                        // بعض الحقول مغلّفة بـ searchable-select مخفي
+                        var real = sel.tagName === 'SELECT' ? sel : null;
+                        if (real) {
+                            real.value = value;
+                            real.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+
+                    document.addEventListener('DOMContentLoaded', function () {
+                        var base = '{{ url('/api') }}'.replace(/\/$/, '');
+                        fetch(base + '/admin/offices/' + OFFICE_ID + '/details', {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-CSRF-TOKEN': (window.AMRTM_CSRF || document.querySelector('meta[name="csrf-token"]')?.content || '')
+                                },
+                                credentials: 'same-origin'
+                            })
+                            .then(function (r) { return r.json(); })
+                            .then(function (d) {
+                                var o = d.office || d.data || d;
+                                if (!o || typeof o !== 'object') { done(false); return; }
+
+                                /*
+                                 * ⚠️ الـ profile يأتي في **جذر** الاستجابة
+                                 * (d.profile) وليس داخل d.office — فكان
+                                 * o.profile غير معرّف فجميع حقول العنوان
+                                 * والترخيص تُركت فارغة.
+                                 */
+                                var p = d.profile || o.profile || {};
+
+                                // ترتيب مهم: الاسم أولاً لتحديث الحقول المشتقّة
+                                fill('name_ar', o.name_ar);
+                                fill('name_en', o.name_en);
+                                fill('legal_name', o.legal_name || o.name_ar);
+                                fill('name', o.name_ar || o.name_en);   // hidden في نموذج العميل-منشأة
+                                fill('office_type', o.type || o.office_type);
+                                fill('entity_type', o.entity_type);
+                                fill('business_activity', o.business_activity || p.business_activity);
+                                fill('category', o.category || p.category);
+                                fill('custom_specialty', p.custom_specialty);
+
+                                // السجلات والترخيص — كلها في bs_office_profiles
+                                fill('cr_number', o.cr_number || p.cr_number);
+                                fill('cr_expiry_date', p.cr_expiry_date);
+                                fill('license_number', p.license_number);
+                                fill('license_expiry_date', p.license_expiry_date);
+                                fill('trademark_registration_number', p.trademark_registration_number);
+                                fill('tax_number', p.tax_number);
+                                fill('description_ar', p.description_ar || o.description_ar);
+                                fill('description_en', p.description_en || o.description_en);
+
+                                fill('email', o.email);
+                                fill('phone', o.phone || p.mobile);
+                                fill('mobile', p.mobile);
+                                fill('office_code', o.office_code);
+
+                                // العنوان: country مخفي، واسم حقل المنطقة يختلف
+                                // بين النموذجين — governorate في نموذج المكتب،
+                                // region في نموذج العميل. نملأ كليهما.
+                                fill('country', p.country);
+                                fill('governorate', p.governorate || o.region);
+                                fill('region', p.governorate || o.region);
+                                fill('city', o.city || p.city);
+                                fill('district', p.district);
+                                fill('street', p.street);
+                                fill('building_number', p.building_number);
+                                fill('office_number', p.office_number);
+
+                                // تنبيه: نتحقق من بقاء الحقول الإلزامية ممتلئة
+                                var requiredNames = ['name_ar', 'name_en', 'office_type', 'entity_type', 'phone', 'email'];
+                                var missing = requiredNames.filter(function (n) {
+                                    var els = [...document.querySelectorAll('[name="' + n + '"]')].filter(function (e) { return !e.disabled; });
+                                    return !els.length || !String(els[0].value || '').trim();
+                                });
+
+                                done(
+                                    missing.length === 0,
+                                    missing.length
+                                        ? 'تعذّر تعبئة: ' + missing.join('، ') + ' — املأها يدوياً ثم احفظ.'
+                                        : null
+                                );
+                            })
+                            .catch(function () { done(false); });
+                    });
+                })();
+            </script>
+        @endif
     @endpush
 
 @endsection

@@ -7,9 +7,11 @@
                             <div class="text-xl font-black text-[--t1]" id="off-pg-ttl">إدارة المكاتب</div>
                             <div class="mt-1 text-sm text-[--t3]" id="off-pg-sub">مكاتب القطاع الخاص المسجلة في المنصة</div>
                         </div>
+                        {{-- يفتح النافذة المنبثقة، ويختار المستخدم النوع داخلها
+                             (مكتب مساند / مكتب استشاري / حساب منشأة) --}}
                         <x-ui.button class="cat-act-btn focus:ring-0!"
                             style="background:rgba(2,119,189,.1);color:var(--blue);border-color:rgba(2,119,189,.28);"
-                            onclick="window.location.href = window.AMRTM_ROUTES.officeCreate">
+                            onclick="openOfficeFormModal('office')">
                             <i class="ti ti-plus"></i>
                             إضافة مكتب / مستشار
                         </x-ui.button>

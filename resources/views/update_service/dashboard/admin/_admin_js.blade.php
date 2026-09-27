@@ -73,6 +73,23 @@
             mainSite: '{{ url('/') }}',
             officeCreate: '{{ route('amrtm.admin.offices.create-form') }}',
             officeEdit: '{{ route('amrtm.admin.offices.edit-form', ['id' => '__ID__']) }}',
+
+            /*
+             * روابط واجهة «إنشاء الحساب» التي تستدعيها النافذة المنبثقة.
+             * نقطة واحدة لكل نوع حتى يبقى تغيير المسار في مكان واحد:
+             *   office        → مكتب مساند
+             *   consultant    → مكتب استشاري
+             *   establishment → حساب منشأة (عميل منشأة)
+             *
+             * تنبيه: نستخدم الإخراج غير المهرَّب هنا وليس المهرَّب، لأن route()
+             * يولّد الروابط بعامل & الفاصل للمعاملات والإخراج المهرَّب يحوّله
+             * إلى &amp; فيُفسَّد الرابط وتصبح account_type غير مقروءة
+             * (النموذج يفتح على «فردي» بدل «منشأة»). الإخراج غير المهرَّب آمن
+             * لأن القيمة ناتجة عن route() داخلي.
+             */
+            providerForm: '{!! route('amrtm.provider.account.create') !!}',
+            providerFormConsultant: '{!! route('amrtm.provider.account.create', ['type' => 'consultant']) !!}',
+            providerFormEstablishment: '{!! route('amrtm.provider.account.create', ['type' => 'client', 'account_type' => 'establishment']) !!}',
         };
     </script>
     <script src="{{ asset('js/amrtm-web.js') }}"></script>
@@ -2703,7 +2720,7 @@ function serviceOptionsText(options) {
   <button type="button"
     class="cat-act-btn focus:ring-0!"
     style="background:rgba(139,92,246,.08);color:#8B5CF6;border-color:rgba(139,92,246,.2);"
-    onclick="window.location.href = window.AMRTM_ROUTES.officeEdit.replace('__ID__', ${o.id})">
+    onclick="openOfficeFormModal(officeFormKind(${o.id}), ${o.id})">
     <i class="ti ti-pencil"></i>
     تعديل
   </button>
@@ -3371,6 +3388,188 @@ function serviceOptionsText(options) {
             AMRTM_MODAL.open('create-admin-modal');
         }
 
+        /* ══════════════════════════════════════════════════════════
+           نافذة إضافة/تعديل المكاتب — تستدعي واجهة إنشاء الحساب
+           ══════════════════════════════════════════════════════════
+           الأنواع الثلاثة (رابط الواجهة المستدعاة داخل النافذة):
+             office        → /provider-account/create
+             consultant    → /provider-account/create?type=consultant
+             establishment → /provider-account/create?type=client&account_type=establishment
+           وتُبنى الروابط من window.AMRTM_ROUTES لتبقى نقطة واحدة لتغيير المسار.
+        */
+        window.OFM = {
+            kind: 'office',
+            officeId: null,
+            booted: false,
+            submitting: false
+        };
+
+        const OFM_KINDS = {
+            office: {
+                title: 'مكتب مساند',
+                icon: 'ti-building-community',
+                url: () => window.AMRTM_ROUTES.providerForm,
+                params: {},
+                hint: 'حقول إضافة مكتب مساند: نوع النشاط، السجل التجاري، الترخيص، التخصص والخدمات.'
+            },
+            consultant: {
+                title: 'مكتب استشاري',
+                icon: 'ti-user-star',
+                url: () => window.AMRTM_ROUTES.providerFormConsultant,
+                params: { type: 'consultant' },
+                hint: 'حقول إضافة مكتب استشاري: النشاط التجاري، الفئات والأقسام المرتبطة به، ثم التخصص المهني والخدمات.'
+            },
+            establishment: {
+                title: 'حساب منشأة',
+                icon: 'ti-user-shield',
+                url: () => window.AMRTM_ROUTES.providerFormEstablishment,
+                params: { type: 'client', account_type: 'establishment' },
+                hint: 'منشأة ليست مكتباً مسانداً ولا مكتباً استشارياً: حساب عميل يتيح لها طلب الخدمات وإنشاء العقود ومتابعة الطلبات.'
+            }
+        };
+
+        function ofmIsEdit() {
+            return OFM.officeId !== null && OFM.officeId !== undefined;
+        }
+
+        /* يحدّد نوع النموذج المناسب لمكتب قائم:
+             subscription_type = subscription → مكتب استشاري
+             subscription_type = commission   → مكتب مساند
+             أي قيمة أخرى/مفقودة               → مكتب مساند (الافتراضي) */
+        function officeFormKind(id) {
+            const o = (_offData || []).find(function (x) { return String(x.id) === String(id); });
+            if (!o) return 'office';
+            if (o.account_types === 'establishment') return 'establishment';
+            return o.subscription_type === 'subscription' ? 'consultant' : 'office';
+        }
+
+        /* يبني رابط النموذج حسب النوع والوضع (إضافة/تعديل)
+         *
+         * لا نعتمد على المعاملات الموجودة في الرابط الجاهز: نضبطها بأنفسنا
+         * عبر URLSearchParams حتى لا يتأثر أي خطأ تهريب (مثل &amp;) بتشوّه
+         * المعاملات — وهو ما كان يفتح نموذج «عميل فردي» بدل «منشأة».
+         */
+        function ofmBuildUrl() {
+            const cfg = OFM_KINDS[OFM.kind] || OFM_KINDS.office;
+            const url = new URL(cfg.url(), window.location.origin);
+
+            // تنظيف أي تهريب HTML محتمل في الرابط قبل التحليل
+            url.search = url.search.replace(/&amp;/g, '&');
+            url.searchParams.forEach(function (_v, k) { url.searchParams.delete(k); });
+
+            Object.keys(cfg.params).forEach(function (k) {
+                url.searchParams.set(k, cfg.params[k]);
+            });
+            url.searchParams.set('embed', '1');
+            if (ofmIsEdit()) url.searchParams.set('edit', String(OFM.officeId));
+
+            return url.toString();
+        }
+
+        function ofmApplyKindStyles() {
+            const cfg = OFM_KINDS[OFM.kind] || OFM_KINDS.office;
+            const edit = ofmIsEdit();
+
+            const ttl = document.getElementById('ofm-title');
+            const ico = document.getElementById('ofm-ttl-icon');
+            if (ttl) ttl.textContent = (edit ? 'تعديل ' : 'إضافة ') + cfg.title;
+            if (ico) ico.className = 'ti ' + cfg.icon + ' text-emerald-600';
+
+            // شريط الأنواع مخفي في وضع التعديل: النوع ثابت لمكتب قائم،
+            // وتغييره意味着 تغيير طبيعة الحساب — قرار إداري لا حقل عادي.
+            const bar = document.getElementById('ofm-type-bar');
+            if (bar) bar.classList.toggle('hidden', edit);
+
+            // تلميح يشرح ماذا سيعرض النموذج
+            const hint = document.getElementById('ofm-hint');
+            const hintText = document.getElementById('ofm-hint-text');
+            if (hintText) hintText.textContent = edit
+                ? 'وضع التعديل: البيانات المحفوظة مسبقاً مُعبّأة داخل النموذج. أي حقل لا تريد تغييره اتركه كما هو.'
+                : cfg.hint;
+            if (hint) {
+                hint.classList.remove('hidden');
+                hint.classList.add('flex');
+            }
+
+            // إبراز الزر المختار
+            document.querySelectorAll('#ofm-type-bar .ofm-kind-btn').forEach(function (btn) {
+                const on = btn.dataset.ofmKind === OFM.kind;
+                btn.className = 'ofm-kind-btn flex-1! min-w-[150px] justify-center! rounded-xl! border! px-3! py-2.5! text-[12.5px]! font-extrabold! transition-all! '
+                    + (on
+                        ? 'border-emerald-600! bg-emerald-600! text-white! shadow-[0_4px_12px_rgba(5,150,105,.22)]!'
+                        : 'border-slate-200! bg-white! text-slate-600! hover:border-slate-300! hover:bg-slate-50!');
+            });
+        }
+
+        function ofmLoad() {
+            const frame = document.getElementById('ofm-frame');
+            const loader = document.getElementById('ofm-loader');
+            if (!frame) return;
+
+            if (loader) loader.classList.remove('hidden');
+            frame.src = ofmBuildUrl();
+        }
+
+        /* فتح النافذة.
+           kind: 'office' | 'consultant' | 'establishment'
+           officeId: null للإضافة، أو رقم المكتب للتعديل */
+        function openOfficeFormModal(kind, officeId) {
+            OFM.kind = OFM_KINDS[kind] ? kind : 'office';
+            OFM.officeId = (officeId === null || officeId === undefined || officeId === '') ? null : officeId;
+            OFM.submitting = false;
+
+            ofmApplyKindStyles();
+            ofmLoad();
+
+            AMRTM_MODAL.open('office-form-modal');
+        }
+
+        function closeOfficeFormModal() {
+            AMRTM_MODAL.close('office-form-modal');
+
+            // إفراغ الإطار حتى لا يبقى نموذج قديم معلّقاً عند إعادة الفتح
+            const frame = document.getElementById('ofm-frame');
+            if (frame) {
+                try { frame.src = 'about:blank'; } catch (e) { /* تجاهُل */ }
+            }
+            OFM.officeId = null;
+            OFM.submitting = false;
+        }
+
+        /* اختيار النوع داخل النافذة (وضع الإضافة فقط) */
+        function selectOfficeFormKind(kind) {
+            if (!OFM_KINDS[kind] || ofmIsEdit()) return;
+            OFM.kind = kind;
+            ofmApplyKindStyles();
+            ofmLoad();
+        }
+
+        /* تبديل النوع من الأزرار */
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest && e.target.closest('[data-ofm-kind]');
+            if (btn) selectOfficeFormKind(btn.dataset.ofmKind);
+        });
+
+        /* الجسر مع الـ iframe: يبلّغنا النموذج عن الجاهزية */
+        window.addEventListener('message', function (event) {
+            if (event.origin !== window.location.origin) return;
+
+            const data = event.data;
+            if (!data || data.source !== 'amrtm-provider-form') return;
+
+            if (data.kind === 'ready') {
+                const loader = document.getElementById('ofm-loader');
+                if (loader) loader.classList.add('hidden');
+                return;
+            }
+        });
+
+        /* إغلاق النافذة بمفتاح Escape */
+        document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Escape') return;
+            const modal = document.getElementById('office-form-modal');
+            if (modal && !modal.classList.contains('hidden')) closeOfficeFormModal();
+        });
         function closeCreateAdminModal() {
             AMRTM_MODAL.close('create-admin-modal');
             ['new-admin-name', 'new-admin-email', 'new-admin-phone', 'new-admin-pass'].forEach(id => {

@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\AdminOfficeController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ProviderAccountController;
 use App\Http\Controllers\ServiceCatalogController;
 use Illuminate\Support\Facades\Route;
 
@@ -59,14 +61,63 @@ Route::get('/provider-account/create', function (\Illuminate\Http\Request $reque
      * محجوب بـ @if(!empty($modeConsultant)). بلا تمرير $mode كانت الصفحة
      * تظهر بلا فئات ولا تخصصات إطلاقاً.
      * المسموح: client | consultant | office | establishment | mixed
+     *
+     * ⚠️ سبب اختفاء واجهة العميل والمستشار:
+     * الروابط في القوالب كلها ترسل ?type=... بينما المسار كان يقرأ ?mode=... فقط،
+     * فيتحوّل أي طلب إلى 'office' (مكتب مساند) ويظهر نموذج المنشأة بدل نموذج العميل.
+     * لذلك نقرأ 'type' أولاً ونُبقي 'mode' كبديل للتوافق الخلفي.
      */
     $allowed = ['client', 'consultant', 'office', 'establishment', 'mixed'];
-    $mode    = $request->query('mode', 'office');
-    if (! in_array($mode, $allowed, true)) {
-        $mode = 'office';
+
+    $raw = $request->query('type');
+    if ($raw === null || $raw === '') {
+        $raw = $request->query('mode', 'office');
+    }
+    // مرادفات شائعة Outreach/الروابط القديمة
+    $raw = (string) $raw;
+    $raw = match ($raw) {
+        'client_individual', 'client-individual', 'individual' => 'client',
+        'client_establishment', 'client-establishment'        => 'client',
+        'commission', 'support', 'supporting'                  => 'office',
+        default                                                => $raw,
+    };
+
+    $mode = in_array($raw, $allowed, true) ? $raw : 'office';
+
+    /*
+     * نوع حساب العميل: individual | establishment
+     * عند ?type=client&account_type=establishment تُفتح واجهة العميل مع
+     * preselected لنوع «منشأة» (حقول المنشأة ظاهرة مسبقاً بدل الفردي).
+     * أي قيمة أخرى = عميل فرد.
+     */
+    $defaultClientAccountType = 'individual';
+    if ($mode === 'client') {
+        $requested = (string) $request->query('account_type', 'individual');
+        $defaultClientAccountType = in_array($requested, ['establishment', 'individual'], true)
+            ? $requested
+            : 'individual';
     }
 
-    return view('update_service.provider-account', compact('mode'));
+    /*
+     | وضع التضمين (?embed=1): تُحمَّل الصفحة داخل <iframe> في نافذة منبثقة
+     | بلوحة الأدمن. في هذا الوضع نُخفي الشريط العلوي و breadcrumb و البانر
+     | الكبير (النافذة تملك ترويستها)، ونُخفي الذيل، ونُبقي النموذج فقط.
+     */
+    $isEmbed = $request->boolean('embed');
+
+    /*
+     * وضع التعديل (?edit={id}): نفس النموذج لكن لملء بيانات مكتب قائم.
+     * نمرّر المعرّف فقط — التعبئة تتم في القالب عبر الـ API المناوِل.
+     */
+    $editId = $request->query('edit');
+    $editId = is_numeric($editId) ? (int) $editId : null;
+
+    return view('update_service.provider-account', [
+        'mode'                     => $mode,
+        'defaultClientAccountType' => $defaultClientAccountType,
+        'isEmbed'                  => $isEmbed,
+        'editId'                   => $editId,
+    ]);
 })->name('amrtm.provider.account.create');
 /*
  | كانت سابقاً stub يعيد قائمة فارغة — وهذا كان سبب عدم ظهور التخصصات
@@ -92,7 +143,27 @@ Route::get('/provider-account/specialties', function (\Illuminate\Http\Request $
     return response($resp->body(), $resp->status())
         ->header('Content-Type', $resp->header('Content-Type') ?: 'application/json');
 })->name('amrtm.provider.account.specialties');
-Route::post('/provider-account', fn () => redirect()->route('amrtm.index'))->name('amrtm.provider.account.store');
+/*
+ * كان stubاً يُعيد التوجيه للصفحة الرئيسية بلا تنفيذ، فيختفي كل ما كتبه
+ * المستخدم. الآن يمرّر الطلب إلى ProviderAccountController الذي يمرّره
+ * للباك اند: POST /api/v1/provider-account
+ */
+Route::post('/provider-account', [ProviderAccountController::class, 'store'])
+    ->name('amrtm.provider.account.store');
+
+/*
+ |--------------------------------------------------------------------------
+ | تعديل مكتب — من داخل النافذة المنبثقة في لوحة الأدمن
+ |--------------------------------------------------------------------------
+ | PUT /admin/offices/{id}
+ | لم يكن هناك أي مسار تعديل — زر «تعديل» في صفحة المكاتب كان ينقل إلى
+ | /admin/offices/{id}/edit-form وهو نفس مسار لوحة الأدمن بلا أي نموذج
+ | (فلا يحدث شيء عند الضغط). الآن يوجد مسار حقيقي يمرّر الطلب للباك اند:
+ |   PUT /api/v1/admin/offices/{id}
+ */
+Route::match(['put', 'patch'], '/admin/offices/{id}', [AdminOfficeController::class, 'update'])
+    ->where('id', '[0-9]+')
+    ->name('amrtm.admin.offices.update');
 
 /* ═══ العقود — إجراءات ═══ */
 Route::post('/contracts', fn () => redirect()->route('amrtm.index'))->name('amrtm.contracts.store');

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -30,10 +30,18 @@ if (! function_exists('amrtm_proxy_multipart')) {
     {
         $multipart = [];
 
-        foreach ($request->allFiles() as $key => $uploads) {
-            // كلFiles обычно UploadedFile واحد (غير مصفوفة). cast إلى array
-            // على كائن PHP يحوّله إلى مصفوفة عناصره الداخلية (خصائصه!)
-            // فيتولد خطأ — لذا نطبّع بشكل صحيح:
+        /*
+         * تسمية ملفات الجذع المتداخلة.
+         *
+         * allFiles() يوسّع الشجرة إلى مستوى واحد (مفتاح "custom_fields" بلا
+         * مفتاح الحقل الداخلي)، فنحتاج request->file() الذي يحافظ على ال��سلسل
+         * الهرمي الحقيقي. نُسجّل index كل ملف في المصفوفة ثم نضع اسمه بعد
+         * اجتياز الشجرة.
+         */
+        $slots = [];
+
+        foreach ($request->allFiles() as $uploads) {
+            // cast على كائن PHP يحوّله إلى مصفوفة خصائصه (خطأ) — نطبّع أولاً:
             $list = is_array($uploads) ? $uploads : [$uploads];
 
             foreach ($list as $file) {
@@ -46,8 +54,10 @@ if (! function_exists('amrtm_proxy_multipart')) {
                     continue;
                 }
 
+                $slots[] = ['file' => $file, 'index' => count($multipart)];
+
                 $multipart[] = [
-                    'name'     => $key,
+                    'name'     => '__FILE__',
                     'contents' => fopen($path, 'rb'),
                     'filename' => $file->getClientOriginalName(),
                     'headers'  => [
@@ -57,12 +67,73 @@ if (! function_exists('amrtm_proxy_multipart')) {
             }
         }
 
-        // الحقول النصية مرفقة بالملفات
-        foreach ($request->except(array_keys($request->allFiles())) as $key => $value) {
+        $label = function (array $node, string $prefix) use (&$label, &$slots): void {
+            foreach ($node as $key => $child) {
+                $name = $prefix === '' ? (string) $key : $prefix . '[' . $key . ']';
+
+                if ($child instanceof \Illuminate\Http\UploadedFile) {
+                    foreach ($slots as $i => $slot) {
+                        if ($slot['file'] === $child) {
+                            $slots[$i]['name'] = $name;
+                            break;
+                        }
+                    }
+
+                    continue;
+                }
+
+                if (is_array($child)) {
+                    $label($child, $name);
+                }
+            }
+        };
+
+        $label($request->file(), '');
+
+        $fileRoots = [];
+        foreach ($slots as $slot) {
+            $name = $slot['name'] ?? '__FILE__';
+            $multipart[$slot['index']]['name'] = $name;
+            $fileRoots[] = explode('[', $name)[0];
+        }
+
+        // الحقول النصية مرفقة بالملفات.
+        // ملاحظة مهمة: custom_fields تصل كمصفوفة متداخلة
+        // (custom_fields[key] = value) و array_merge أو foreach بسيط
+        // كانا يحوّلانها إلى "Array" نصياً فتفقد كل قيمة وتبقى مطلوبة فارغة.
+        // لذلك نُسطّح المصفوفات بالشكل/name[a][b] الذي يفهمه Laravel في
+        // request->file('custom_fields.مفتاح') و request->input() معاً.
+        $flatten = function (array $data, string $prefix = '') use (&$flatten): array {
+            $out = [];
+
+            foreach ($data as $key => $value) {
+                $name = $prefix === '' ? (string) $key : $prefix . '[' . $key . ']';
+
+                if (is_array($value)) {
+                    $out += $flatten($value, $name);
+                    continue;
+                }
+
+                $out[$name] = $value;
+            }
+
+            return $out;
+        };
+
+        /*
+         * نستبعد فقط الجذور التي لها ملف مرفوع فعلاً. سابقاً كان الاستبعاد
+         * على array_keys(allFiles()) وهو يعيد "custom_fields" فقط، فكان
+         * يُسقط كل قيم custom_fields النصية مع ملفها. إن كان الحقل الجذر
+         * يحمل ملفات وقيماً معاً نحتفظ بالقيم النصية ونضيفها بأسمائها.
+         */
+        $fileKeys = array_keys($request->allFiles());
+        $keepText = array_values(array_diff($request->keys(), $fileKeys));
+
+        foreach ($request->only($keepText) as $key => $value) {
             if (is_array($value)) {
-                foreach ($value as $sub) {
-                    if (is_scalar($sub) || $sub === null) {
-                        $multipart[] = ['name' => $key . '[]', 'contents' => (string) $sub];
+                foreach ($flatten([$key => $value]) as $name => $flat) {
+                    if (is_scalar($flat) || $flat === null) {
+                        $multipart[] = ['name' => $name, 'contents' => (string) $flat];
                     }
                 }
 
