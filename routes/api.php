@@ -246,6 +246,37 @@ Route::match(['get', 'post', 'put', 'patch', 'delete'], '/{path}', function (Req
         ], 502);
     }
 
+    /*
+     |--------------------------------------------------------------------------
+     | تحويل روابط الوسائط المطلقة إلى same-origin
+     |--------------------------------------------------------------------------
+     | الباك اند يبني روابط الصور عبر url()‏ فتصبح مطلقة على نطاقه
+     | (https://amrtmbusiness.rf.gd/media/…). عرضها في صفحة تعمل على
+     | نطاق آخر يجعل الطلب عبر-نطاقات، فيرسل المتصفح Referer لنطاق
+     | الصفحة، وحماية «منع السرقة الساخنة» على الاستضافة ترفضه — بينما
+     | فتح الصورة مباشرة ينجح (لا Referer خارجي). وهو سبب ظهور بعض
+     | الصور وفشل غيرها.
+     |
+     | لذلك نُعيد كتابة أي رابط وسائط ليصبح /media/… على **نطاق
+     | الواجهة**، فيُخدم من نفس الأصل بلا Referer خارجي.
+     */
+    $contentType = $resp->header('Content-Type') ?: 'application/json';
+
+    if (str_contains($contentType, 'json')) {
+        $decoded = json_decode($resp->body(), true);
+
+        if (is_array($decoded)) {
+            $rewritten = \App\Support\AmrtmMedia::rewrite($decoded);
+            $body = json_encode(
+                $rewritten,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE
+            );
+
+            return response($body === false ? $resp->body() : $body, $resp->status())
+                ->header('Content-Type', $contentType);
+        }
+    }
+
     return response($resp->body(), $resp->status())
-        ->header('Content-Type', $resp->header('Content-Type') ?: 'application/json');
+        ->header('Content-Type', $contentType);
 })->where('path', '.*');

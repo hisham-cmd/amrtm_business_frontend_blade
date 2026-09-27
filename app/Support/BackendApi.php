@@ -205,7 +205,14 @@ class BackendApi
                 );
             }
 
-            return collect($resp->json());
+            /*
+             | نعيد كتابة روابط الوسائط المطلقة القادمة من الباك اند لتصبح
+             | على نطاق الواجهة (same-origin). بدون هذا الخطوة، الصور تعمل
+             | محلياً بالصدفة (لأن BACKEND_API_URL = 127.0.0.1) وتفشل في
+             | الإنتاج: طلب عبر-النطاقات يُرفض من حماية منع السرقة الساخنة
+             | على الاستضافة. انظر AmrtmMedia.
+             */
+            return AmrtmMedia::rewrite(collect($resp->json()));
         } catch (\Illuminate\Http\Client\ConnectionException $e) {
             // الباك اند غير مشغّل / المنفذ مغلق / لا شبكة
             Log::warning("BackendApi {$method} {$path} connection error: " . $e->getMessage());

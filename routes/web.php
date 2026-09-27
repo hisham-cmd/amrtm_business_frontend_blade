@@ -53,6 +53,135 @@ Route::post('/nafath/verify', fn () => redirect()->route('amrtm.index'))->name('
 Route::get('/nafath/status', fn () => response()->json(['status' => 'WAITING', 'wait' => 2]))->name('amrtm.nafath.status');
 Route::get('/nafath/callback', fn () => redirect()->route('amrtm.index'))->name('amrtm.nafath.callback');
 
+/* ═══ وسيط الوسائط — يمنع فشل الصور عبر النطاقات ═══ */
+/*
+/*
+ | المشكلة: الباك اند يبني روابط مطلقة عبر الدالة url()‏‏(app.url‏‏)‏:
+ |     https://amrtmbusiness.rf.gd/media/uploads/x.webp
+ | فلما عرضتها صفحة على نطاق آخر (127.0.0.1 أو business.amrtm.com.sa)
+ | يرسل المتصفح Referer لنطاق الصفحة، وحماية «منع السرقة الساخنة»
+ | (hotlink protection) على الاستضافة ترفض الطلب بناءً عليه — بينما
+ | فتح الصورة مباشرة في تبويب ينجح لأن حينها لا Referer Tanniej.
+ | النتيجة: `onerror` يعمل ويختفي img لتظهر الأيقونة البديلة.
+ |
+ | الحل: نجعل كل الصور **من نفس أصل الواجهة** عبر هذا المسار، فلا
+ | يوجد طلب لنطاق آخر أصلاً — فلا Referer ولا حماية سرقة ساخنة.
+ |
+ | المسار: /media/{path}
+ |   /media/uploads/9a1c….webp
+ |   /media/homepage/slides/1788….jpeg
+ |   /media/images/uploads/office_43_x.jpg
+ */
+Route::get('/media/{path}', function (\Illuminate\Http\Request $request) {
+    $path = (string) $request->route('path');
+
+    // سياسات أمان: نرفض التسلل قبل أي طلب خارجي
+    if ($path === '' || str_contains($path, "\0") || preg_match('#(^|/)\.\.(/|$)#', $path)) {
+        abort(404);
+    }
+
+    $backend = rtrim((string) env('BACKEND_API_URL', 'http://127.0.0.1:8000'), '/');
+
+    $fetch = function (string $u) {
+        return \App\Support\BackendHttp::send(
+            fn (string $uu, ?string $cookie) => \Illuminate\Support\Facades\Http::timeout(20)
+                ->withHeaders(array_filter([
+                    'Accept'           => '*/*',
+                    'X-Requested-With' => 'XMLHttpRequest',
+                    'Cookie'           => $cookie,
+                ]))
+                ->get($uu),
+            $u,
+        );
+    };
+
+    try {
+        /*
+         | جرّب مسارات بالترتيب، ليعمل الوسيط مع الباك اند الجديد
+         | والقديم معاً (اللايف ما زال يعمل بالكود القديم):
+         |
+         |  1) /media/{path}            ⇒ MediaController (الجديد والقديم
+         |     يخدمانه لـ uploads؛ القديم يرفض homepage بـ 404)
+         |  2) /storage/{path}          ⇒ مسار storage.public الذي كان
+         |     يخدم به الكود القديم صور السلايدر عبر public/storage
+         |  3) /media-resolve/{name}    ⇒ بحث بالاسم المجرّد (جديد فقط)
+         |     ويجد الملف حين يخمّن الرابط القديم الاسم بلا بادئة رقمية
+         |  4) /images/{name}           ⇒ الموقع القديم المخدوم مباشرة
+         */
+        $candidates = [
+            $backend . '/media/' . $path,
+            $backend . '/storage/' . $path,
+        ];
+
+        $resp = null;
+
+        foreach ($candidates as $candidate) {
+            $try = $fetch($candidate);
+
+            if ($try->successful() && (string) $try->body() !== '') {
+                $resp = $try;
+                break;
+            }
+
+            $resp ??= $try;
+        }
+
+        if (! $resp || ! $resp->successful()) {
+            $resolved = $fetch($backend . '/media-resolve/' . rawurlencode(basename($path)));
+
+            if ($resolved->successful()) {
+                $j       = json_decode($resolved->body(), true);
+                $realUrl = is_array($j) ? ($j['value']['url'] ?? null) : null;
+
+                if (is_string($realUrl) && $realUrl !== '') {
+                    $viaResolve = $fetch($realUrl);
+
+                    if ($viaResolve->successful() && (string) $viaResolve->body() !== '') {
+                        $resp = $viaResolve;
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        abort(404);
+    }
+
+    if (! $resp->successful() || (string) $resp->body() === '') {
+        abort(404);
+    }
+
+    $bytes = (string) $resp->body();
+
+    if ($bytes === '') {
+        abort(404);
+    }
+
+    /*
+     | ⚠️ نزيل UTF-8 BOM (EF BB BF): عميل HTTP في Laravel يضيفه لجسم
+     | الاستجابة الثنائي، فيصبح الملف غير قابل للفك:
+     |     ef bb bf 52 49 46 46 …  ← المتصفح: "source image could not be decoded"
+     |     52 49 46 46 …          ← سليم
+     */
+    if (str_starts_with($bytes, "\xEF\xBB\xBF")) {
+        $bytes = substr($bytes, 3);
+    }
+
+    /*
+     | نُخرج البايتات مباشرة وننهي الطلب (exit) لتجاوز طبقة استجابة
+     | Symfony التي كانت تضيف البايتات الزائدة مجدداً رغم التنظيف.
+     */
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
+    header('Content-Type: ' . ($resp->header('Content-Type') ?: 'application/octet-stream'));
+    header('Content-Length: ' . strlen($bytes));
+    header('Cache-Control: public, max-age=31536000, immutable');
+
+    echo $bytes;
+    exit;
+})->where('path', '[A-Za-z0-9._\-/]+')->name('amrtm.media.proxy');
+
 /* ═══ تسجيل مزود/مستشار/عميل ═══ */
 Route::get('/provider-account/create', function (\Illuminate\Http\Request $request) {
     /*
