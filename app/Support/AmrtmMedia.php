@@ -81,8 +81,8 @@ class AmrtmMedia
 
         $path = (string) parse_url($trimmed, PHP_URL_PATH);
 
-        // المسارات التي نعرفها: /media/… و /storage/… و /images/…
-        if (! Str::startsWith($path, ['/media/', '/storage/', '/images/'])) {
+        // المسارات التي نعرفها: /media/… و /storage/… و /images/… و /videos/…
+        if (! Str::startsWith($path, ['/media/', '/storage/', '/images/', '/videos/'])) {
             return $url;
         }
 
@@ -92,16 +92,35 @@ class AmrtmMedia
         } elseif (Str::startsWith($path, '/storage/')) {
             // /storage/homepage/slides/x.jpeg ⇒ homepage/slides/x.jpeg
             $relative = ltrim(Str::after($path, '/storage/'), '/');
+        } elseif (Str::startsWith($path, '/videos/')) {
+            /*
+             * الفيديوهات (مثل homepageMedia.video_file) كانت تبقى مطلقة على
+             * نطاق الباك اند ⇒ طلب عبر-النطاقات ⇒ عرضة لحماية منع السرقة
+             * الساخنة تماماً مثل الصور. نوجّهها إلى نفس مسار الوسائط.
+             */
+            $relative = 'videos/' . ltrim(Str::after($path, '/videos/'), '/');
         } else {
             /*
              * /images/... ملفات ثابتة (logo2.jpg، official-logo.jpg …).
              *
-             * ⚠️ كان الكود يضيف 'uploads/' قبل أي مسار /images/، فحوّل
-             * /images/slide-x.jpg (ملف غير موجود) إلى /media/uploads/slide-x.jpg
-             * (وهو أيضاً غير موجود) ⇒ 404 بدقّة. لا نفترض أي مجلد:
-             * نترك /images/ كما هو لأنه يُخدم مباشرة من نطاق الواجهة،
-             * ولا نrewrite إلا ما هو فعلاً على قرص الباك اند.
+             * ⚠️ كانت تُترك كما تصل من الباك اند، فتبقى مطلقة على نطاقه
+             * (طلب عبر-النطاقات، عرضة لمنع السرقة الساخنة) — وهذا ما كان
+             * يتسرّب مع video_poster مثلاً.
+             *
+             * ⚠️ ولا يجوز تعمييم التحويل إلى /media/uploads/ كما سبق أن فعل
+             *    الكود: ذلك يحوّل /images/slide-x.jpg (غير موجود) إلى مسار
+             *    آخر غير موجود ⇒ 404 بدقّة.
+             *
+             * الحل الآمن: نستخدم نسخة الواجهة من الملف إن وُجدت فعلاً
+             * (المشروعان يتشاركان public/images)، وإلا نترك الرابط كما هو
+             * حتى لا نكسر شيئاً لم نتحقق منه.
              */
+            $relative = ltrim(Str::after($path, '/images/'), '/');
+
+            if ($relative !== '' && is_file(public_path('images/' . $relative))) {
+                return url('images/' . $relative);
+            }
+
             return $url;
         }
 
