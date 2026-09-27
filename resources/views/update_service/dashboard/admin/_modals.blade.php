@@ -1,4 +1,4 @@
-﻿<!-- BALANCE ADJUSTMENT MODAL -->
+<!-- BALANCE ADJUSTMENT MODAL -->
     <div id="balance-modal" data-modal-target="balance-modal" tabindex="-1" aria-hidden="true" class="fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-900/50 p-4">
         <div class="relative w-full max-w-md">
             <div class="relative rounded-2xl bg-white shadow-xl dark:bg-gray-800">

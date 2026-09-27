@@ -1,4 +1,4 @@
-﻿@extends('layouts.public')
+@extends('layouts.public')
 @section('title')
     {{ $category->name_ar }} | منصة آمر تم
 @endsection
