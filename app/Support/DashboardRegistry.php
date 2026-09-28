@@ -279,34 +279,124 @@ class DashboardRegistry
             }
         }
 
-        $dbRows = TypeInterface::query()
-            ->whereIn('type_key', $keys->all())
-            ->whereIn('interface_key', $allKeys)
-            ->get();
+        $dbRows = self::typeInterfaceOverrides($keys->all(), $allKeys);
 
         // السجلات الصريحة تُعالج بعد افتراضات كل الأنواع حتى لو تعارضت.
         foreach ($dbRows as $row) {
-            if (! isset($enabled[$row->interface_key])) {
+            $interfaceKey = is_array($row) ? ($row['interface_key'] ?? null) : ($row->interface_key ?? null);
+            $isEnabled    = is_array($row) ? ($row['is_enabled'] ?? false) : ($row->is_enabled ?? false);
+
+            if ($interfaceKey === null || ! isset($enabled[$interfaceKey])) {
                 continue;
             }
-            if (! $row->is_enabled) {
+
+            if (! $isEnabled) {
                 // يُفصل فقط إذا كان كل أنواع المستخدم قُصرت عليه؛ ولتبسيط السلوك:
                 // أي سجل معطّل يزال الواجهة إلا إذا كانت مفعّلة بنوع آخر بسجله الخاص.
-                $stillEnabledByOther = TypeInterface::query()
-                    ->where('interface_key', $row->interface_key)
-                    ->where('type_key', '!=', $row->type_key)
-                    ->whereIn('type_key', $keys->all())
-                    ->where('is_enabled', true)
-                    ->exists();
-                if (! $stillEnabledByOther) {
-                    unset($enabled[$row->interface_key]);
+                $stillEnabledByOther = false;
+                foreach ($dbRows as $other) {
+                    $ok = is_array($other) ? ($other['interface_key'] ?? null) : ($other->interface_key ?? null);
+                    $tk = is_array($other) ? ($other['type_key'] ?? null) : ($other->type_key ?? null);
+                    $en = is_array($other) ? ($other['is_enabled'] ?? false) : ($other->is_enabled ?? false);
+
+                    if ($ok === $interfaceKey
+                        && $tk !== null
+                        && $tk !== self::rowTypeKey($row)
+                        && in_array($tk, $keys->all(), true)
+                        && $en) {
+                        $stillEnabledByOther = true;
+                        break;
+                    }
                 }
-            } elseif ($row->is_enabled && ! isset($enabled[$row->interface_key])) {
-                $enabled[$row->interface_key] = true;
+
+                if (! $stillEnabledByOther) {
+                    unset($enabled[$interfaceKey]);
+                }
+            } else {
+                $enabled[$interfaceKey] = true;
             }
         }
 
         return array_keys($enabled);
+    }
+
+    /**
+     * سجلات تجاوز الصلاحيات من جدول bs_type_interfaces.
+     *
+     * ⚠️ كان يُقرأ مباشرةً عبر TypeInterface::query() أي أن **الواجهة كانت
+     *    تتصل بقاعدة بيانات الباك اند** — وهو ما يفشل على الاستضافة:
+     *      SQLSTATE[HY000] [2002] Connection timed out
+     *      (Connection: business, Host: sql112.infinityfree.com, …)
+     *    المرجع الصحيح: الواجهة تقرأ بياناتها من الـ API فقط، والجداول
+     *    الخاصة بـ Laravel (sessions/cache/jobs) وحدها ما على هذه القاعدة.
+     *
+     * الحل: نجلب السجلات من نقطة الـ API التي يوفّرها الباك اند.
+     * أي فشل هنا يعود بمصفوفة فارغة فتُستخدم القيم الافتراضية — وهو
+     * السلوك نفسه الذي كان عليه الكود عند غياب السجلات.
+     */
+    private static function typeInterfaceOverrides(array $typeKeys, array $interfaceKeys): array
+    {
+        if ($typeKeys === [] || $interfaceKeys === []) {
+            return [];
+        }
+
+        // نطلبها من الـ API مع تمرير القيم، ونتحقق أنها صالحة قبل الاستخدام.
+        $rows = self::fetchTypeInterfacesFromApi($typeKeys, $interfaceKeys);
+
+        return array_values(array_filter($rows, static function ($r) {
+            $k = is_array($r) ? ($r['interface_key'] ?? null) : ($r->interface_key ?? null);
+
+            return is_string($k) && $k !== '';
+        }));
+    }
+
+    /** يقرأ type_key من سجل (مصفوفة أو كائن) بشكل موحّد. */
+    private static function rowTypeKey($row): ?string
+    {
+        $v = is_array($row) ? ($row['type_key'] ?? null) : ($row->type_key ?? null);
+
+        return is_string($v) ? $v : null;
+    }
+
+    /**
+     * جلب سجلات bs_type_interfaces عبر الـ API.
+     *
+     * @return array<int,array>
+     */
+    private static function fetchTypeInterfacesFromApi(array $typeKeys, array $interfaceKeys): array
+    {
+        try {
+            if (! class_exists(\App\Support\BackendApi::class)) {
+                return [];
+            }
+
+            /*
+             * المسار ببادئة /api/v1 صريحة — مثل بقية استدعاءات الواجهة
+             * (AuthController و AdminOfficeController تستدعي /api/v1/…).
+             * فالنتيجة على الباك اند هي  /api/v1/type-interfaces
+             * وهو المسار المسجّل في routes/api.php.
+             */
+            $url = '/api/v1/type-interfaces'
+                . '?type_keys=' . rawurlencode(implode(',', $typeKeys))
+                . '&interface_keys=' . rawurlencode(implode(',', $interfaceKeys));
+
+            $resp = \App\Support\BackendApi::get($url);
+
+            $value = $resp->get('value');
+
+            if (is_array($value)) {
+                // نقبل {items:[…]} أو {type_interfaces:[…]} أو مصفوفة مباشرة
+                $items = $value['items'] ?? $value['type_interfaces'] ?? $value['data'] ?? $value;
+
+                if (is_array($items)) {
+                    return array_values(array_filter($items, 'is_array'));
+                }
+            }
+        } catch (\Throwable) {
+            // نتجاهل بهدوء: الافتراضات الافتراضية كافية
+        }
+
+        return [];
     }
 
     /**
@@ -344,11 +434,20 @@ class DashboardRegistry
 
     /**
      * حالة النوع/الواجهة: سجل حقيقي بالتفضيل أو القيمة الافتراضية.
+     *
+     * ⚠️ كان يطلب كائن TypeInterface (من قاعدة بيانات الباك اند). صارت
+     *    السجلات تأتي من الـ API كمصفوفات، فقبلنا ambos الشكلين ونقرؤ
+     *    الحقول بطريقة موحّدة. القيد (?TypeInterface) أُزيل لأن تمرير
+     *    مصفوفة كانت ترمي TypeError.
      */
-    public static function enabledState(?TypeInterface $row, string $typeKey, string $interfaceKey): bool
+    public static function enabledState($row, string $typeKey, string $interfaceKey): bool
     {
         if ($row !== null) {
-            return $row->is_enabled;
+            $enabled = is_array($row) ? ($row['is_enabled'] ?? null) : ($row->is_enabled ?? null);
+
+            if ($enabled !== null) {
+                return (bool) $enabled;
+            }
         }
 
         return in_array($interfaceKey, self::defaults()[$typeKey] ?? [], true);
